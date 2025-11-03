@@ -99,7 +99,12 @@ function rollMonth(year: number, month: number, delta: number) {
   return { year: d.getFullYear(), month: d.getMonth() }
 }
 
-export default function PlanningScreen() {
+interface PlanningScreenProps {
+  selectedJobs: string[];
+  setSelectedJobs: (jobs: string[]) => void;
+}
+
+export default function PlanningScreen({ selectedJobs, setSelectedJobs }: PlanningScreenProps) {
   const roles = [
     { role: "Cook", demand: 10, supply: 7 },
     { role: "Server", demand: 8, supply: 8 },
@@ -114,13 +119,12 @@ export default function PlanningScreen() {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth()) // 0..11
   const [route, setRoute] = useState<Route>('plan')
   const [recruitTarget, setRecruitTarget] = useState<string | 'ALL'>('ALL')
-  const [selectedJobs, setSelectedJobs] = useState<string[]>([])
 
   const toggleJobSelection = (role: string) => {
-    setSelectedJobs(prev => 
-      prev.includes(role) 
-        ? prev.filter(r => r !== role)
-        : [...prev, role]
+    setSelectedJobs(
+      selectedJobs.includes(role) 
+        ? selectedJobs.filter(r => r !== role)
+        : [...selectedJobs, role]
     )
   }
 

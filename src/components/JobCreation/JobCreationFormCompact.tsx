@@ -52,7 +52,12 @@ interface Question {
   newChoice: string;
 }
 
-export default function JobCreationFormCompact(){
+interface JobCreationFormCompactProps {
+  jobRole?: string;
+  onComplete?: () => void;
+}
+
+export default function JobCreationFormCompact({ jobRole, onComplete }: JobCreationFormCompactProps = {}){
   const [culture, setCulture] = useState(["Collaborative","Fast-paced"]);
   const [newTag, setNewTag] = useState("");
   const [skills, setSkills] = useState(["Food Handler","POS (Square)"]);
@@ -64,7 +69,7 @@ export default function JobCreationFormCompact(){
   const [dragOver, setDragOver] = useState<number | null>(null);
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const locationDropdownRef = useRef<HTMLDivElement>(null);
-  const [selectedJobRole, setSelectedJobRole] = useState<string>("Cook");
+  const [selectedJobRole, setSelectedJobRole] = useState<string>(jobRole || "Cook");
   const jobRoles = ["Cook", "Server", "Barista", "Host"];
   const [companyLogo, setCompanyLogo] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -357,15 +362,21 @@ export default function JobCreationFormCompact(){
         <Card title="Job Details" icon={<span>🧰</span>}>
           <Field label="Title"><Input placeholder="Line Cook" defaultValue="Line Cook"/></Field>
           <Field label="Job Role">
-            <select 
-              className="w-full h-9 px-2 rounded border border-gray-300"
-              value={selectedJobRole}
-              onChange={(e) => setSelectedJobRole(e.target.value)}
-            >
-              {jobRoles.map((role) => (
-                <option key={role} value={role}>{role}</option>
-              ))}
-            </select>
+            {jobRole ? (
+              <div className="w-full h-9 px-2 rounded border border-gray-200 bg-gray-50 flex items-center text-gray-700">
+                {selectedJobRole}
+              </div>
+            ) : (
+              <select 
+                className="w-full h-9 px-2 rounded border border-gray-300"
+                value={selectedJobRole}
+                onChange={(e) => setSelectedJobRole(e.target.value)}
+              >
+                {jobRoles.map((role) => (
+                  <option key={role} value={role}>{role}</option>
+                ))}
+              </select>
+            )}
           </Field>
           <Field span="col-span-12" label="Location">
             <div className="relative" ref={locationDropdownRef}>
@@ -682,7 +693,17 @@ export default function JobCreationFormCompact(){
         {/* Footer actions */}
         <div className="flex justify-end gap-3">
           <button className="h-9 px-4 border rounded">Cancel</button>
-          <button className="h-9 px-4 rounded bg-blue-600 text-white">Save Job Posting</button>
+          {onComplete && (
+            <button 
+              onClick={onComplete}
+              className="h-9 px-4 rounded bg-green-600 text-white hover:bg-green-700"
+            >
+              Mark as Complete ✓
+            </button>
+          )}
+          <button className="h-9 px-4 rounded bg-blue-600 text-white hover:bg-blue-700">
+            {onComplete ? 'Save & Continue' : 'Save Job Posting'}
+          </button>
         </div>
       </div>
 
