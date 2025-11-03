@@ -4,16 +4,16 @@ import JobCreationFormCompact from './components/JobCreation/JobCreationFormComp
 
 type Tab = 'demand' | 'advertisement' | 'campaign' | 'review';
 
-export default function PassimRecruitingApp() {
+export default function PasscomRecruitingApp() {
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     // Load persisted tab from localStorage
-    const saved = localStorage.getItem('passim-recruiting-active-tab');
+    const saved = localStorage.getItem('passcom-recruiting-active-tab');
     return (saved as Tab) || 'demand';
   });
 
   // Persist tab selection
   useEffect(() => {
-    localStorage.setItem('passim-recruiting-active-tab', activeTab);
+    localStorage.setItem('passcom-recruiting-active-tab', activeTab);
   }, [activeTab]);
 
   const tabs: { id: Tab; label: string }[] = [
@@ -28,7 +28,7 @@ export default function PassimRecruitingApp() {
       {/* Header */}
       <div className="bg-white border-b shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-4">
-          <h1 className="text-2xl font-bold text-gray-900">Passim Recruiting</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Passcom Recruiting</h1>
         </div>
       </div>
 

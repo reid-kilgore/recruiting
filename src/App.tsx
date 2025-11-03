@@ -1,7 +1,7 @@
-import PassimRecruitingApp from './PassimRecruitingApp'
+import PasscomRecruitingApp from './PasscomRecruitingApp'
 
 function App() {
-  return <PassimRecruitingApp />
+  return <PasscomRecruitingApp />
 }
 
 export default App
