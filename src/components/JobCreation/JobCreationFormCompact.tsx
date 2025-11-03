@@ -209,93 +209,102 @@ export default function JobCreationFormCompact(){
           <Field span="col-span-12 lg:col-span-6" label="Company Name">
             <Input placeholder="e.g., TechCorp Solutions" defaultValue="TechCorp Solutions"/>
           </Field>
-          <Field span="col-span-12 lg:col-span-6" label="Logo">
-            <div className="space-y-2">
-              {companyLogo ? (
-                <div 
-                  className="relative w-24 h-24 border rounded-lg overflow-hidden bg-white cursor-pointer hover:border-blue-400"
-                  onDoubleClick={handleLogoDoubleClick}
-                  title="Double-click to adjust position and zoom"
-                >
-                  <img src={companyLogo} alt="Company Logo" className="w-full h-full object-contain" />
-                  <button
-                    type="button"
-                    onClick={() => setCompanyLogo(null)}
-                    className="absolute top-1 right-1 w-5 h-5 bg-red-600 text-white rounded-full flex items-center justify-center hover:bg-red-700 z-10"
-                  >
-                    ×
-                  </button>
-                </div>
-              ) : (
-                <div className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400">
-                  <span className="text-2xl">🏢</span>
-                </div>
-              )}
-              <input
-                ref={logoInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleLogoUpload}
-                className="hidden"
-              />
-              <button
-                type="button"
-                onClick={() => logoInputRef.current?.click()}
-                className="text-blue-600 hover:underline text-sm"
-              >
-                {companyLogo ? 'Change Logo' : 'Upload Logo'}
-              </button>
-            </div>
-          </Field>
-
+          
           <Field span="col-span-12 lg:col-span-6" label="Company Website">
             <Input placeholder="https://www.example.com" type="url"/>
           </Field>
 
-          <Field span="col-span-12 lg:col-span-6" label="Welcome Video">
-            <div className="space-y-2">
-              {welcomeVideo ? (
-                <div className="border rounded-lg overflow-hidden bg-black">
-                  <video 
-                    src={welcomeVideo} 
-                    controls 
-                    className="w-full max-h-64"
+          <Field span="col-span-12" label="">
+            <div className="flex gap-6 items-start">
+              {/* Logo */}
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[13px] text-gray-700">Logo</span>
+                  <input
+                    ref={logoInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => logoInputRef.current?.click()}
+                    className="text-blue-600 hover:underline text-sm"
                   >
-                    Your browser does not support the video tag.
-                  </video>
+                    Upload
+                  </button>
                 </div>
-              ) : (
-                <div className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 p-8 flex flex-col items-center justify-center text-gray-400">
-                  <span className="text-4xl mb-2">🎥</span>
-                  <span className="text-sm">No video uploaded</span>
-                </div>
-              )}
-              <div className="flex gap-2 items-center">
-                <input
-                  ref={videoInputRef}
-                  type="file"
-                  accept="video/*"
-                  onChange={handleVideoUpload}
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => videoInputRef.current?.click()}
-                  className="text-blue-600 hover:underline text-sm"
-                >
-                  {welcomeVideo ? 'Change Video' : 'Upload Video'}
-                </button>
-                {welcomeVideo && (
-                  <>
-                    <span className="text-gray-300">|</span>
+                {companyLogo ? (
+                  <div 
+                    className="relative w-24 h-24 border rounded-lg overflow-hidden bg-white cursor-pointer hover:border-blue-400"
+                    onDoubleClick={handleLogoDoubleClick}
+                    title="Double-click to adjust position and zoom"
+                  >
+                    <img src={companyLogo} alt="Company Logo" className="w-full h-full object-contain" />
                     <button
                       type="button"
-                      onClick={() => setWelcomeVideo(null)}
-                      className="text-red-600 hover:underline text-sm"
+                      onClick={() => setCompanyLogo(null)}
+                      className="absolute top-1 right-1 w-5 h-5 bg-red-600 text-white rounded-full flex items-center justify-center hover:bg-red-700 z-10"
                     >
-                      Remove
+                      ×
                     </button>
-                  </>
+                  </div>
+                ) : (
+                  <div className="w-24 h-24 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400">
+                    <span className="text-2xl">🏢</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Welcome Video */}
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[13px] text-gray-700">Welcome Video</span>
+                  <input
+                    ref={videoInputRef}
+                    type="file"
+                    accept="video/*"
+                    onChange={handleVideoUpload}
+                    className="hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => videoInputRef.current?.click()}
+                    className="text-blue-600 hover:underline text-sm"
+                  >
+                    Upload
+                  </button>
+                  {welcomeVideo && (
+                    <>
+                      <span className="text-gray-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setWelcomeVideo(null)}
+                        className="text-red-600 hover:underline text-sm"
+                      >
+                        Remove
+                      </button>
+                    </>
+                  )}
+                </div>
+                {welcomeVideo ? (
+                  <div className="border rounded-lg overflow-hidden bg-black" style={{ width: '192px', height: '96px' }}>
+                    <video 
+                      src={welcomeVideo} 
+                      controls 
+                      className="w-full h-full object-cover"
+                    >
+                      Your browser does not support the video tag.
+                    </video>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg bg-gray-50 flex items-center justify-center text-gray-400" style={{ width: '192px', height: '96px' }}>
+                    <div className="text-center">
+                      <div className="text-2xl mb-1">🎥</div>
+                      <div className="text-xs">No video</div>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
@@ -315,7 +324,7 @@ export default function JobCreationFormCompact(){
           </Field>
 
           <Field span="col-span-12" label="Visual Media (4-up thumbnails)">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))' }}>
               {images.map((img, i) => (
                 <div 
                   key={i}
