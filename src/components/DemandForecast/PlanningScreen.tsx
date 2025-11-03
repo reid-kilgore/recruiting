@@ -144,23 +144,18 @@ export default function PlanningScreen() {
 
   return (
     <div className="flex flex-col h-full bg-gray-50 text-gray-900">
-      {/* Top Context Bar */}
-      <div className="flex items-center gap-3 p-3 border-b bg-white shadow-sm">
-        <select className="border rounded px-2 py-1 text-sm" defaultValue="BOS,LGA">
-          <option>Locations: BOS, LGA</option>
-        </select>
-        <div className="ml-auto flex items-center gap-6 text-sm">
-          <div>Time-to-Hire: <b>8.3 days</b></div>
-          <div>Cost per Applicant: <b>$12.40</b></div>
-          <div>Cost per Hire: <b>$164.20</b></div>
-        </div>
-      </div>
-
       <div className="flex flex-1 overflow-hidden">
         {route === 'plan' ? (
           <>
             {/* Left Panel: Roles list */}
             <div className="w-1/4 overflow-y-auto p-4 space-y-3">
+              {/* Location Selector */}
+              <div className="mb-3">
+                <select className="w-full border rounded px-2 py-2 text-sm bg-white" defaultValue="BOS,LGA">
+                  <option>Locations: BOS, LGA</option>
+                </select>
+              </div>
+              
               {roles.map((r) => {
                 const gap = r.demand - r.supply
                 const pct = Math.max(0, Math.min(100, (r.supply / Math.max(1, r.demand)) * 100))
