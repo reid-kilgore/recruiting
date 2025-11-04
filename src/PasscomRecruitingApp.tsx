@@ -127,7 +127,12 @@ export default function PasscomRecruitingApp() {
         
         {activeTab === 'campaign' && (
           <div className="h-full overflow-auto">
-            <CampaignManager />
+            <CampaignManager
+              selectedLocations={selectedLocations}
+              setSelectedLocations={setSelectedLocations}
+              selectedJobs={selectedJobs}
+              setSelectedJobs={setSelectedJobs}
+            />
           </div>
         )}
         

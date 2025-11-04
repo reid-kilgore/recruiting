@@ -39,6 +39,14 @@ interface Campaign {
   name: string;
   createdAt: string;
   sources: Source[];
+  status: 'active' | 'suspended' | 'draft';
+  locations: string[];
+  jobs: string[];
+  startDate: string;
+  endDate?: string;
+  endBudget?: number;
+  endHires?: number;
+  endMode: 'date' | 'budget' | 'hires';
 }
 
 // ---- demo data
@@ -49,10 +57,15 @@ const DEFAULT_SOURCES: Source[] = [
   { key: 'referrals',  enabled: true,  dailyCap: 12, dailyBudget:  55, cpa:  6.25 },
   { key: 'qr_posters', enabled: false, dailyCap:  0, dailyBudget:   0, cpa:  0.00 },
 ];
+
 const CAMPAIGNS: Campaign[] = [
-  { id:'c3', name:'New Location Opening', createdAt:'2025-10-14', sources: DEFAULT_SOURCES },
-  { id:'c2', name:'Weekend Staffing',     createdAt:'2025-09-28', sources: DEFAULT_SOURCES },
-  { id:'c1', name:'Holiday Surge',        createdAt:'2025-08-31', sources: DEFAULT_SOURCES },
+  { id:'c7', name:'Summer Hiring Blitz', createdAt:'2025-11-01', sources: DEFAULT_SOURCES, status: 'active', locations: ['BOS', 'LGA'], jobs: ['Server', 'Host'], startDate: '2025-11-01', endDate: '2025-12-15', endMode: 'date' },
+  { id:'c6', name:'Q4 Expansion', createdAt:'2025-10-25', sources: DEFAULT_SOURCES, status: 'suspended', locations: ['DCA'], jobs: ['Cook', 'Server'], startDate: '2025-10-25', endBudget: 5000, endMode: 'budget' },
+  { id:'c5', name:'Weekend Warriors', createdAt:'2025-10-18', sources: DEFAULT_SOURCES, status: 'active', locations: ['BOS'], jobs: ['Bartender', 'Server'], startDate: '2025-10-18', endHires: 15, endMode: 'hires' },
+  { id:'c4', name:'New Menu Launch', createdAt:'2025-10-15', sources: DEFAULT_SOURCES, status: 'active', locations: ['LGA', 'DCA'], jobs: ['Cook'], startDate: '2025-10-15', endDate: '2025-11-30', endMode: 'date' },
+  { id:'c3', name:'New Location Opening', createdAt:'2025-10-14', sources: DEFAULT_SOURCES, status: 'active', locations: ['ORD'], jobs: ['Cook', 'Server', 'Host'], startDate: '2025-10-14', endDate: '2025-12-01', endMode: 'date' },
+  { id:'c2', name:'Weekend Staffing', createdAt:'2025-09-28', sources: DEFAULT_SOURCES, status: 'suspended', locations: ['BOS', 'LGA'], jobs: ['Server'], startDate: '2025-09-28', endBudget: 3000, endMode: 'budget' },
+  { id:'c1', name:'Holiday Surge', createdAt:'2025-08-31', sources: DEFAULT_SOURCES, status: 'active', locations: ['BOS'], jobs: ['Cook', 'Server', 'Bartender'], startDate: '2025-08-31', endDate: '2025-12-25', endMode: 'date' },
 ];
 
 const applicantsPerDay = (s: Source) => {
@@ -61,12 +74,26 @@ const applicantsPerDay = (s: Source) => {
   return s.dailyCap > 0 ? Math.min(est, s.dailyCap) : est;
 };
 
-export default function CampaignManager(){
+interface CampaignManagerProps {
+  selectedLocations: string[];
+  setSelectedLocations: (locations: string[]) => void;
+  selectedJobs: string[];
+  setSelectedJobs: (jobs: string[]) => void;
+}
+
+export default function CampaignManager({ selectedLocations, setSelectedLocations, selectedJobs, setSelectedJobs }: CampaignManagerProps){
   const [campaigns, setCampaigns] = useState(
     [...CAMPAIGNS].sort((a,b)=> new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   );
   const [activeId, setActiveId] = useState(campaigns[0]?.id);
   const current = useMemo(()=> campaigns.find(c=>c.id===activeId) || campaigns[0], [campaigns, activeId]);
+
+  const handleSelectCampaign = (campaign: Campaign) => {
+    setActiveId(campaign.id);
+    // Update global selections
+    setSelectedLocations(campaign.locations);
+    setSelectedJobs(campaign.jobs);
+  };
 
   // Default date range: today → +27 days
   const today = new Date();
@@ -121,6 +148,9 @@ export default function CampaignManager(){
             setCampaigns={setCampaigns}
             dateRange={dateRange}
             setDateRange={setDateRange}
+            onSelectCampaign={handleSelectCampaign}
+            selectedLocations={selectedLocations}
+            selectedJobs={selectedJobs}
           />
         </div>
 
@@ -190,6 +220,9 @@ interface CampaignsWindowProps {
   setCampaigns: React.Dispatch<React.SetStateAction<Campaign[]>>;
   dateRange: { start: string; end: string };
   setDateRange: React.Dispatch<React.SetStateAction<{ start: string; end: string }>>;
+  onSelectCampaign: (campaign: Campaign) => void;
+  selectedLocations: string[];
+  selectedJobs: string[];
 }
 
 function CampaignsWindow(props: CampaignsWindowProps){
@@ -197,9 +230,12 @@ function CampaignsWindow(props: CampaignsWindowProps){
     campaigns = [],
     activeId,
     setActiveId = ()=>{},
-    // setCampaigns = ()=>{}, // Reserved for future functionality
+    setCampaigns = ()=>{},
     dateRange: incomingDateRange,
     setDateRange = ()=>{},
+    onSelectCampaign,
+    selectedLocations,
+    selectedJobs,
   } = props || {};
 
   const today = new Date();
@@ -212,14 +248,27 @@ function CampaignsWindow(props: CampaignsWindowProps){
 
   const [name, setName] = useState('');
   const [start, setStart] = useState(dateRange.start);
-  const [job] = useState('Server'); // Display only, setJob reserved for future functionality
-  const [loc] = useState('Downtown'); // Display only, setLoc reserved for future functionality
   const [endMode, setEndMode] = useState<'budget' | 'hires' | 'date'>('date');
   const [endBudget, setEndBudget] = useState(1000);
   const [endHires, setEndHires] = useState(10);
   const [endDate, setEndDate] = useState(dateRange.end);
+  const [campaignStatus, setCampaignStatus] = useState<'active' | 'suspended' | 'draft'>('draft');
 
   useEffect(()=>{ setStart(dateRange.start); setEndDate(dateRange.end); }, [dateRange.start, dateRange.end]);
+
+  // Populate form when a campaign is selected
+  useEffect(() => {
+    const selectedCampaign = campaigns.find(c => c.id === activeId);
+    if (selectedCampaign) {
+      setName(selectedCampaign.name);
+      setStart(selectedCampaign.startDate);
+      setEndMode(selectedCampaign.endMode);
+      setEndBudget(selectedCampaign.endBudget || 1000);
+      setEndHires(selectedCampaign.endHires || 10);
+      setEndDate(selectedCampaign.endDate || dateRange.end);
+      setCampaignStatus(selectedCampaign.status);
+    }
+  }, [activeId, campaigns, dateRange.end]);
 
   const Field = ({label, children, active = false}: {label: string; children: React.ReactNode; active?: boolean})=> (
     <div className={`relative border rounded-md px-2 pt-2 pb-1 bg-white min-h-[38px] ${active ? 'border-gray-600' : 'border-gray-400'}`}>
@@ -232,17 +281,44 @@ function CampaignsWindow(props: CampaignsWindowProps){
   const saveStart = (v: string)=>{ setStart(v); setDateRange((r)=>({...(r||{}), start:v})); };
   const saveEnd   = (v: string)=>{ setEndDate(v); setEndMode('date'); setDateRange((r)=>({...(r||{}), end:v})); };
 
+  const handleLaunchSuspend = () => {
+    const newStatus: 'active' | 'suspended' = campaignStatus === 'active' ? 'suspended' : 'active';
+    setCampaignStatus(newStatus);
+    
+    // If launching a new campaign, add it to the list
+    if (campaignStatus === 'draft' && name.trim()) {
+      const newCampaign: Campaign = {
+        id: `c${Date.now()}`,
+        name: name.trim(),
+        createdAt: new Date().toISOString().slice(0, 10),
+        sources: DEFAULT_SOURCES,
+        status: newStatus,
+        locations: selectedLocations,
+        jobs: selectedJobs,
+        startDate: start,
+        endDate: endMode === 'date' ? endDate : undefined,
+        endBudget: endMode === 'budget' ? endBudget : undefined,
+        endHires: endMode === 'hires' ? endHires : undefined,
+        endMode: endMode,
+      };
+      setCampaigns(prev => [newCampaign, ...prev]);
+      setActiveId(newCampaign.id);
+    } else {
+      // Update existing campaign status
+      setCampaigns(prev => prev.map(c => 
+        c.id === activeId ? { ...c, status: newStatus } : c
+      ));
+    }
+  };
+
   const previewRows = useMemo(()=>{
-    return (campaigns || []).map((c, idx)=>{
-      const mode = (idx % 3===0)? 'date' : (idx % 3===1 ? 'hires' : 'budget');
-      const created = new Date(c.createdAt || today);
-      const end = new Date(created); end.setDate(created.getDate()+45);
+    return (campaigns || []).map((c)=>{
       const fmt = (d: Date)=> new Date(d).toLocaleDateString(undefined,{month:'short', day:'numeric'});
       let right = '';
-      if(mode==='date')   right = `${fmt(created)} - ${fmt(end)}`;
-      if(mode==='hires')  right = `${5+idx} / ${20+idx}`;
-      if(mode==='budget') right = `$ ${(300+idx*50).toLocaleString()} / $ ${(1000+idx*200).toLocaleString()}`;
-      return { id:c.id || String(idx), name:c.name || `Campaign ${idx+1}`, right };
+      if(c.endMode==='date' && c.endDate)   right = `${fmt(new Date(c.startDate))} - ${fmt(new Date(c.endDate))}`;
+      if(c.endMode==='hires' && c.endHires)  right = `Target: ${c.endHires} hires`;
+      if(c.endMode==='budget' && c.endBudget) right = `Budget: $ ${c.endBudget.toLocaleString()}`;
+      return { id:c.id || '', name:c.name || 'Untitled Campaign', right, status: c.status };
     });
   },[campaigns]);
 
@@ -325,22 +401,66 @@ function CampaignsWindow(props: CampaignsWindowProps){
         </div>
       </div>
 
-      {/* Role/Location pills (display only) */}
-      <div className="flex gap-2 mb-3">
-        <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-700">Role: {job}</span>
-        <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-700">Location: {loc}</span>
+      {/* Launch/Suspend Button */}
+      <div className="mb-3">
+        <button
+          onClick={handleLaunchSuspend}
+          className={`w-full px-4 py-2 rounded-lg font-medium text-sm transition ${
+            campaignStatus === 'active'
+              ? 'bg-orange-600 hover:bg-orange-700 text-white'
+              : 'bg-green-600 hover:bg-green-700 text-white'
+          }`}
+        >
+          {campaignStatus === 'active' ? 'Suspend Campaign' : 'Launch Campaign'}
+        </button>
       </div>
 
-      {/* Scrollable list */}
+      {/* Scrollable Campaign List */}
       <div className="border rounded-lg h-64 overflow-y-scroll pr-2">
         <div className="divide-y">
-          {previewRows.map(row=> (
-            <button key={row.id} onClick={()=>setActiveId(row.id)}
-              className={`w-full flex items-center justify-between px-3 py-2 text-sm text-left ${row.id===activeId? 'bg-gray-50':''}`}>
-              <span className="truncate">{row.name}</span>
-              <span className="text-gray-700 ml-3 shrink-0">{row.right}</span>
-            </button>
-          ))}
+          {previewRows.map(row=> {
+            const campaign = campaigns.find(c => c.id === row.id);
+            return (
+              <button 
+                key={row.id} 
+                onClick={()=> {
+                  if (campaign) {
+                    onSelectCampaign(campaign);
+                  }
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2 text-sm text-left transition ${
+                  row.id===activeId
+                    ? row.status === 'active'
+                      ? 'bg-green-50 border-l-4 border-green-600'
+                      : row.status === 'suspended'
+                        ? 'bg-gray-50 border-l-4 border-gray-400'
+                        : 'bg-blue-50 border-l-4 border-blue-600'
+                    : row.status === 'active'
+                      ? 'hover:bg-green-50'
+                      : row.status === 'suspended'
+                        ? 'hover:bg-gray-50 opacity-60'
+                        : 'hover:bg-blue-50'
+                }`}
+              >
+                <div className="flex-1 truncate">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate">{row.name}</span>
+                    {row.status === 'active' && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-600 text-white">
+                        ACTIVE
+                      </span>
+                    )}
+                    {row.status === 'suspended' && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-400 text-white">
+                        SUSPENDED
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <span className="text-gray-700 ml-3 shrink-0 text-xs">{row.right}</span>
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
