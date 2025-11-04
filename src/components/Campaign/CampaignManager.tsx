@@ -298,8 +298,16 @@ function CampaignsWindow(props: CampaignsWindowProps){
     const newStatus: 'active' | 'suspended' = campaignStatus === 'active' ? 'suspended' : 'active';
     setCampaignStatus(newStatus);
     
-    // If launching a new campaign, add it to the list
-    if (campaignStatus === 'draft' && name.trim()) {
+    // Check if this campaign already exists in the list
+    const existingCampaign = campaigns.find(c => c.id === activeId);
+    
+    if (existingCampaign) {
+      // Update existing campaign status (includes copied campaigns)
+      setCampaigns(prev => prev.map(c => 
+        c.id === activeId ? { ...c, status: newStatus } : c
+      ));
+    } else if (campaignStatus === 'draft' && name.trim()) {
+      // Create a brand new campaign (only if it doesn't exist yet)
       const newCampaign: Campaign = {
         id: `c${Date.now()}`,
         name: name.trim(),
@@ -316,11 +324,6 @@ function CampaignsWindow(props: CampaignsWindowProps){
       };
       setCampaigns(prev => [newCampaign, ...prev]);
       setActiveId(newCampaign.id);
-    } else {
-      // Update existing campaign status
-      setCampaigns(prev => prev.map(c => 
-        c.id === activeId ? { ...c, status: newStatus } : c
-      ));
     }
   };
 
