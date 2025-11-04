@@ -359,20 +359,20 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete }: JobFo
         )}
       </div>
 
-      {/* Save Button */}
-      <div className="flex justify-end gap-3 pt-4 border-t">
-        {onComplete && (
+      {/* Action Buttons */}
+      {onComplete && (
+        <div className="flex justify-between items-center pt-4 border-t">
+          <div className="text-sm text-gray-500 italic">
+            Changes are saved automatically
+          </div>
           <button
             onClick={onComplete}
             className="px-6 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition"
           >
             Mark as Complete ✓
           </button>
-        )}
-        <button className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition">
-          Save & Continue
-        </button>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
