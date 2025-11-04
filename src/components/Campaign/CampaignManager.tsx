@@ -197,7 +197,7 @@ function CampaignsWindow(props: CampaignsWindowProps){
     campaigns = [],
     activeId,
     setActiveId = ()=>{},
-    setCampaigns = ()=>{},
+    // setCampaigns = ()=>{}, // Reserved for future functionality
     dateRange: incomingDateRange,
     setDateRange = ()=>{},
   } = props || {};
@@ -212,8 +212,8 @@ function CampaignsWindow(props: CampaignsWindowProps){
 
   const [name, setName] = useState('');
   const [start, setStart] = useState(dateRange.start);
-  const [job, setJob] = useState('Server');
-  const [loc, setLoc] = useState('Downtown');
+  const [job] = useState('Server'); // Display only, setJob reserved for future functionality
+  const [loc] = useState('Downtown'); // Display only, setLoc reserved for future functionality
   const [endMode, setEndMode] = useState<'budget' | 'hires' | 'date'>('date');
   const [endBudget, setEndBudget] = useState(1000);
   const [endHires, setEndHires] = useState(10);

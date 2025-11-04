@@ -193,10 +193,11 @@ export default function JobCreationFormCompact({ jobRole, onComplete }: JobCreat
       if (file.type.startsWith('image/')) {
         const reader = new FileReader();
         reader.onload = (event) => {
-          if (event.target?.result) {
+          const result = event.target?.result;
+          if (result) {
             setImages(prev => {
               const newImages = [...prev];
-              newImages[index] = event.target.result as string;
+              newImages[index] = result as string;
               return newImages;
             });
           }
@@ -543,7 +544,7 @@ export default function JobCreationFormCompact({ jobRole, onComplete }: JobCreat
         {/* Questions (two-up cards) */}
         <Card title="Application Questions" icon={<span>❓</span>}>
           <div className="col-span-12 grid grid-cols-12 gap-3">
-            {questions.map((q, idx) => (
+            {questions.map((q) => (
               <div key={q.id} className="col-span-12 md:col-span-6">
                 <div className="border rounded-lg p-3 bg-gray-50">
                   <div className="flex items-center justify-between mb-2 text-sm">

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import PlanningScreen from './components/DemandForecast/PlanningScreen';
-import JobCreationFormCompact from './components/JobCreation/JobCreationFormCompact';
 import CampaignManager from './components/Campaign/CampaignManager';
+import AdvertisementManager from './components/Advertisement/AdvertisementManager';
 
 type Tab = 'demand' | 'advertisement' | 'campaign' | 'review';
 
@@ -19,8 +19,8 @@ export default function PasscomRecruitingApp() {
   });
 
   const [selectedJobs, setSelectedJobs] = useState<string[]>([]);
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [jobForms, setJobForms] = useState<JobFormData[]>([]);
-  const [activeJobTab, setActiveJobTab] = useState(0);
 
   // Update job forms when selected jobs change
   useEffect(() => {
@@ -31,10 +31,7 @@ export default function PasscomRecruitingApp() {
       });
       return newForms;
     });
-    if (selectedJobs.length > 0 && activeJobTab >= selectedJobs.length) {
-      setActiveJobTab(0);
-    }
-  }, [selectedJobs, activeJobTab]);
+  }, [selectedJobs]);
 
   // Persist tab selection
   useEffect(() => {
@@ -60,22 +57,47 @@ export default function PasscomRecruitingApp() {
       {/* Tabs */}
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="flex gap-2">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`
-                  px-6 py-3 font-medium text-sm transition-all
-                  ${activeTab === tab.id
-                    ? 'bg-blue-600 text-white rounded-t-lg shadow-md'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-t-lg'
-                  }
-                `}
-              >
-                {tab.label}
-              </button>
-            ))}
+          <div className="flex gap-2 items-center justify-between">
+            <div className="flex gap-2">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`
+                    px-6 py-3 font-medium text-sm transition-all
+                    ${activeTab === tab.id
+                      ? 'bg-blue-600 text-white rounded-t-lg shadow-md'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-t-lg'
+                    }
+                  `}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            
+            {/* Target Tag */}
+            <div className="px-4 py-2 bg-gray-100 border border-gray-300 rounded-lg text-sm">
+              {selectedLocations.length === 0 && selectedJobs.length === 0 ? (
+                <span className="text-gray-500 italic">Choose Locations & Jobs to recruit</span>
+              ) : (
+                <div className="flex items-center gap-2">
+                  {selectedLocations.length > 0 && (
+                    <span className="text-gray-700">
+                      <span className="font-medium">Locations:</span> {selectedLocations.join(', ')}
+                    </span>
+                  )}
+                  {selectedLocations.length > 0 && selectedJobs.length > 0 && (
+                    <span className="text-gray-400">|</span>
+                  )}
+                  {selectedJobs.length > 0 && (
+                    <span className="text-gray-700">
+                      <span className="font-medium">Jobs:</span> {selectedJobs.join(', ')}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -87,62 +109,19 @@ export default function PasscomRecruitingApp() {
             <PlanningScreen 
               selectedJobs={selectedJobs} 
               setSelectedJobs={setSelectedJobs}
+              selectedLocations={selectedLocations}
+              setSelectedLocations={setSelectedLocations}
             />
           </div>
         )}
         
         {activeTab === 'advertisement' && (
           <div className="h-full overflow-auto bg-gray-50">
-            {selectedJobs.length > 1 ? (
-              // Multi-job interface with sub-tabs
-              <div className="h-full flex flex-col">
-                {/* Job Sub-Tabs */}
-                <div className="bg-white border-b px-6 py-3">
-                  <div className="max-w-6xl mx-auto">
-                    <div className="flex gap-2 overflow-x-auto">
-                      {jobForms.map((job, index) => (
-                        <button
-                          key={job.role}
-                          onClick={() => setActiveJobTab(index)}
-                          className={`
-                            px-4 py-2 rounded-t-lg font-medium text-sm transition-all flex items-center gap-2 whitespace-nowrap
-                            ${activeJobTab === index
-                              ? job.completed 
-                                ? 'bg-green-600 text-white' 
-                                : 'bg-blue-600 text-white'
-                              : job.completed
-                                ? 'bg-green-50 text-green-700 hover:bg-green-100'
-                                : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
-                            }
-                          `}
-                        >
-                          <span>{job.role}</span>
-                          {job.completed && <span>✓</span>}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Active Job Form */}
-                <div className="flex-1 overflow-auto">
-                  {jobForms[activeJobTab] && (
-                    <JobCreationFormCompact 
-                      key={jobForms[activeJobTab].role}
-                      jobRole={jobForms[activeJobTab].role}
-                      onComplete={() => {
-                        setJobForms(prev => prev.map((f, i) => 
-                          i === activeJobTab ? { ...f, completed: true } : f
-                        ));
-                      }}
-                    />
-                  )}
-                </div>
-              </div>
-            ) : (
-              // Single job or no selection - show default form
-              <JobCreationFormCompact />
-            )}
+            <AdvertisementManager
+              selectedJobs={selectedJobs}
+              jobForms={jobForms}
+              setJobForms={setJobForms}
+            />
           </div>
         )}
         

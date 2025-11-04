@@ -1,5 +1,5 @@
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, useRef, useEffect } from "react"
 
 // Planning Wireframe V3.2 — fixes stray brace and restores WeekGrid separation.
 // - Header: Location + KPIs only
@@ -102,9 +102,12 @@ function rollMonth(year: number, month: number, delta: number) {
 interface PlanningScreenProps {
   selectedJobs: string[];
   setSelectedJobs: (jobs: string[]) => void;
+  selectedLocations: string[];
+  setSelectedLocations: (locations: string[]) => void;
 }
 
-export default function PlanningScreen({ selectedJobs, setSelectedJobs }: PlanningScreenProps) {
+export default function PlanningScreen({ selectedJobs, setSelectedJobs, selectedLocations, setSelectedLocations }: PlanningScreenProps) {
+  const availableLocations = ['BOS', 'LGA', 'DCA', 'ORD']
   const roles = [
     { role: "Cook", demand: 10, supply: 7 },
     { role: "Server", demand: 8, supply: 8 },
@@ -119,12 +122,35 @@ export default function PlanningScreen({ selectedJobs, setSelectedJobs }: Planni
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth()) // 0..11
   const [route, setRoute] = useState<Route>('plan')
   const [recruitTarget, setRecruitTarget] = useState<string | 'ALL'>('ALL')
+  const [showLocationDropdown, setShowLocationDropdown] = useState(false)
+  const locationDropdownRef = useRef<HTMLDivElement>(null)
+
+  // Close location dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target as Node)) {
+        setShowLocationDropdown(false)
+      }
+    }
+    if (showLocationDropdown) {
+      document.addEventListener('mousedown', handleClickOutside)
+      return () => document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [showLocationDropdown])
 
   const toggleJobSelection = (role: string) => {
     setSelectedJobs(
       selectedJobs.includes(role) 
         ? selectedJobs.filter(r => r !== role)
         : [...selectedJobs, role]
+    )
+  }
+
+  const toggleLocationSelection = (location: string) => {
+    setSelectedLocations(
+      selectedLocations.includes(location)
+        ? selectedLocations.filter(loc => loc !== location)
+        : [...selectedLocations, location]
     )
   }
 
@@ -152,10 +178,11 @@ export default function PlanningScreen({ selectedJobs, setSelectedJobs }: Planni
     setWeekOffset(diff)
     setViewMode('week')
   }
-  function goRecruit(target: string | 'ALL' = 'ALL') {
-    setRecruitTarget(target)
-    setRoute('recruit')
-  }
+  // Reserved for future functionality
+  // function goRecruit(target: string | 'ALL' = 'ALL') {
+  //   setRecruitTarget(target)
+  //   setRoute('recruit')
+  // }
   function shiftMonth(delta: number) {
     const r = rollMonth(currentYear, currentMonth, delta)
     setCurrentYear(r.year)
@@ -171,9 +198,39 @@ export default function PlanningScreen({ selectedJobs, setSelectedJobs }: Planni
             <div className="w-1/4 overflow-y-auto p-4 space-y-3">
               {/* Location Selector */}
               <div className="mb-3">
-                <select className="w-full border rounded px-2 py-2 text-sm bg-white" defaultValue="BOS,LGA">
-                  <option>Locations: BOS, LGA</option>
-                </select>
+                <div className="relative" ref={locationDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setShowLocationDropdown(!showLocationDropdown)}
+                    className="w-full border rounded px-3 py-2 text-sm bg-white text-left flex items-center justify-between hover:bg-gray-50"
+                  >
+                    <span className="truncate">
+                      {selectedLocations.length === 0 
+                        ? 'Select Locations...' 
+                        : `Locations: ${selectedLocations.join(', ')}`}
+                    </span>
+                    <span className="ml-2">▼</span>
+                  </button>
+                  
+                  {showLocationDropdown && (
+                    <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-48 overflow-y-auto">
+                      {availableLocations.map((location) => (
+                        <label
+                          key={location}
+                          className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedLocations.includes(location)}
+                            onChange={() => toggleLocationSelection(location)}
+                            className="mr-2"
+                          />
+                          <span className="text-sm">{location}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
               
               {/* Recruit for Job Button */}
