@@ -26,6 +26,18 @@ const safeISO = (d: Date | string | number) => {
 };
 const isoDate = (d: Date | string | number) => safeISO(d);
 
+// Fix timezone issue: parse ISO date string as local date, not UTC
+const parseLocalDate = (dateStr: string): Date => {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day);
+};
+
+// Format date for display without timezone shifts
+const formatDate = (dateStr: string): string => {
+  const date = parseLocalDate(dateStr);
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
+
 interface Source {
   key: string;
   enabled: boolean;
@@ -102,13 +114,14 @@ export default function CampaignManager({ selectedLocations, setSelectedLocation
 
   // build daily series for chart
   const days = useMemo(()=>{
-    const s = new Date(dateRange.start); const e = new Date(dateRange.end);
-    const ms = Math.max(0, (e.setHours(0,0,0,0) - s.setHours(0,0,0,0)));
+    const s = parseLocalDate(dateRange.start);
+    const e = parseLocalDate(dateRange.end);
+    const ms = Math.max(0, (e.getTime() - s.getTime()));
     return Math.max(1, Math.floor(ms/(24*60*60*1000)) + 1);
   }, [dateRange.start, dateRange.end]);
 
   const dailySeries = useMemo(()=>{
-    const start = new Date(dateRange.start);
+    const start = parseLocalDate(dateRange.start);
     const arr: any[] = [];
     const crest = (i: number, n: number, k: number)=>{
       const t = n<=1? 0 : i/(n-1);
@@ -117,7 +130,8 @@ export default function CampaignManager({ selectedLocations, setSelectedLocation
       return clamp(base + wobble, 0.7, 1.35);
     };
     for (let i=0;i<days;i++){
-      const d = new Date(start); d.setDate(start.getDate()+i);
+      const d = new Date(start);
+      d.setDate(start.getDate()+i);
       const dateLabel = `${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; // MM-DD
       const wd = d.toLocaleDateString(undefined,{weekday:'short'});
       const baseBy: Record<string, number> = {indeed:0,facebook:0,craigslist:0,referrals:0,qr_posters:0};
@@ -311,11 +325,47 @@ function CampaignsWindow(props: CampaignsWindowProps){
     }
   };
 
+  const handleSave = () => {
+    // Save current campaign changes
+    setCampaigns(prev => prev.map(c => 
+      c.id === activeId ? {
+        ...c,
+        name,
+        startDate: start,
+        endDate: endMode === 'date' ? endDate : undefined,
+        endBudget: endMode === 'budget' ? endBudget : undefined,
+        endHires: endMode === 'hires' ? endHires : undefined,
+        endMode: endMode,
+      } : c
+    ));
+  };
+
+  const handleCopy = () => {
+    const currentCampaign = campaigns.find(c => c.id === activeId);
+    if (currentCampaign) {
+      // Clear the form for a new campaign with copied data
+      setName(`${currentCampaign.name} (Copy)`);
+      setCampaignStatus('draft');
+      // Keep all other fields as they are (already populated from the selected campaign)
+    }
+  };
+
+  const handleDelete = () => {
+    const currentCampaign = campaigns.find(c => c.id === activeId);
+    if (currentCampaign && window.confirm(`Are you sure you want to delete "${currentCampaign.name}"? This action cannot be undone.`)) {
+      setCampaigns(prev => prev.filter(c => c.id !== activeId));
+      // Select the first remaining campaign or clear if none left
+      const remaining = campaigns.filter(c => c.id !== activeId);
+      if (remaining.length > 0) {
+        setActiveId(remaining[0].id);
+      }
+    }
+  };
+
   const previewRows = useMemo(()=>{
     return (campaigns || []).map((c)=>{
-      const fmt = (d: Date)=> new Date(d).toLocaleDateString(undefined,{month:'short', day:'numeric'});
       let right = '';
-      if(c.endMode==='date' && c.endDate)   right = `${fmt(new Date(c.startDate))} - ${fmt(new Date(c.endDate))}`;
+      if(c.endMode==='date' && c.endDate)   right = `${formatDate(c.startDate)} - ${formatDate(c.endDate)}`;
       if(c.endMode==='hires' && c.endHires)  right = `Target: ${c.endHires} hires`;
       if(c.endMode==='budget' && c.endBudget) right = `Budget: $ ${c.endBudget.toLocaleString()}`;
       return { id:c.id || '', name:c.name || 'Untitled Campaign', right, status: c.status };
@@ -401,18 +451,49 @@ function CampaignsWindow(props: CampaignsWindowProps){
         </div>
       </div>
 
-      {/* Launch/Suspend Button */}
-      <div className="mb-3">
-        <button
-          onClick={handleLaunchSuspend}
-          className={`w-full px-4 py-2 rounded-lg font-medium text-sm transition ${
-            campaignStatus === 'active'
-              ? 'bg-orange-600 hover:bg-orange-700 text-white'
-              : 'bg-green-600 hover:bg-green-700 text-white'
-          }`}
-        >
-          {campaignStatus === 'active' ? 'Suspend Campaign' : 'Launch Campaign'}
-        </button>
+      {/* Campaign Action Buttons */}
+      <div className="mb-3 space-y-2">
+        {/* Primary Actions */}
+        <div className="flex gap-2">
+          {campaignStatus !== 'active' && (
+            <button
+              onClick={handleLaunchSuspend}
+              className="flex-1 px-3 py-2 rounded-lg font-medium text-sm transition bg-green-600 hover:bg-green-700 text-white"
+            >
+              Launch
+            </button>
+          )}
+          {campaignStatus === 'active' && (
+            <button
+              onClick={handleLaunchSuspend}
+              className="flex-1 px-3 py-2 rounded-lg font-medium text-sm transition bg-orange-600 hover:bg-orange-700 text-white"
+            >
+              Suspend
+            </button>
+          )}
+          <button
+            onClick={handleSave}
+            className="flex-1 px-3 py-2 rounded-lg font-medium text-sm transition bg-blue-600 hover:bg-blue-700 text-white"
+          >
+            Save
+          </button>
+        </div>
+        
+        {/* Secondary Actions */}
+        <div className="flex gap-2">
+          <button
+            onClick={handleCopy}
+            className="flex-1 px-3 py-2 rounded-lg font-medium text-sm transition bg-gray-600 hover:bg-gray-700 text-white"
+          >
+            Copy
+          </button>
+          <button
+            onClick={handleDelete}
+            className="flex-1 px-3 py-2 rounded-lg font-medium text-sm transition bg-red-600 hover:bg-red-700 text-white"
+          >
+            Delete
+          </button>
+        </div>
       </div>
 
       {/* Scrollable Campaign List */}
