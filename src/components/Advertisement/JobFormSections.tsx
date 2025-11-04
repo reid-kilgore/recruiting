@@ -57,7 +57,8 @@ interface JobFormSectionsProps {
 
 type SectionTab = 'details' | 'compensation' | 'schedule' | 'questions';
 
-export default function JobFormSections({ jobRole, onComplete }: JobFormSectionsProps) {
+export default function JobFormSections({ jobRole: _jobRole, onComplete }: JobFormSectionsProps) {
+  // jobRole is used by parent for identification, not displayed since it's shown in the tab
   const [activeSection, setActiveSection] = useState<SectionTab>('details');
   const [skills, setSkills] = useState(["Food Handler", "POS (Square)"]);
   const [newSkill, setNewSkill] = useState("");
@@ -164,11 +165,6 @@ export default function JobFormSections({ jobRole, onComplete }: JobFormSections
         {activeSection === 'details' && (
           <Card title="Job Details" icon={<span>🧰</span>}>
             <Field label="Title"><Input placeholder="Line Cook" defaultValue="Line Cook" /></Field>
-            <Field label="Job Role">
-              <div className="w-full h-9 px-2 rounded border border-gray-200 bg-gray-50 flex items-center text-gray-700">
-                {jobRole}
-              </div>
-            </Field>
             <Field span="col-span-12" label="Location">
               <div className="relative" ref={locationDropdownRef}>
                 <button
