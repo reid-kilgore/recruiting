@@ -268,9 +268,7 @@ function CampaignsWindow(props: CampaignsWindowProps){
   const [endDate, setEndDate] = useState(dateRange.end);
   const [campaignStatus, setCampaignStatus] = useState<'active' | 'suspended' | 'draft'>('draft');
 
-  useEffect(()=>{ setStart(dateRange.start); setEndDate(dateRange.end); }, [dateRange.start, dateRange.end]);
-
-  // Populate form when a campaign is selected
+  // Populate form when a campaign is selected (only when activeId changes)
   useEffect(() => {
     const selectedCampaign = campaigns.find(c => c.id === activeId);
     if (selectedCampaign) {
@@ -282,7 +280,8 @@ function CampaignsWindow(props: CampaignsWindowProps){
       setEndDate(selectedCampaign.endDate || dateRange.end);
       setCampaignStatus(selectedCampaign.status);
     }
-  }, [activeId, campaigns, dateRange.end]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId]); // Only re-run when campaign selection changes, not on every campaigns array update
 
   const Field = ({label, children, active = false}: {label: string; children: React.ReactNode; active?: boolean})=> (
     <div className={`relative border rounded-md px-2 pt-2 pb-1 bg-white min-h-[38px] ${active ? 'border-gray-600' : 'border-gray-400'}`}>
