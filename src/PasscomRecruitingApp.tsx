@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import PlanningScreen from './components/DemandForecast/PlanningScreen';
 import JobCreationFormCompact from './components/JobCreation/JobCreationFormCompact';
+import CampaignManager from './components/Campaign/CampaignManager';
 
 type Tab = 'demand' | 'advertisement' | 'campaign' | 'review';
 
@@ -146,11 +147,8 @@ export default function PasscomRecruitingApp() {
         )}
         
         {activeTab === 'campaign' && (
-          <div className="h-full flex items-center justify-center">
-            <div className="text-center">
-              <h2 className="text-2xl font-semibold text-gray-700 mb-2">Campaign</h2>
-              <p className="text-gray-500">Coming soon...</p>
-            </div>
+          <div className="h-full overflow-auto">
+            <CampaignManager />
           </div>
         )}
         
