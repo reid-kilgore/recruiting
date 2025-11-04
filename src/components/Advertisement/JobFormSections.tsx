@@ -1,15 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 
-const Card: React.FC<{ title: string; icon?: React.ReactNode; children: React.ReactNode }> = ({ title, icon, children }) => (
-  <div className="bg-white border rounded-xl p-5 shadow-sm">
-    <div className="flex items-center gap-3 mb-4">
-      <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center text-gray-600">{icon ?? '⬚'}</div>
-      <h2 className="text-base font-semibold">{title}</h2>
-    </div>
-    <div className="grid grid-cols-12 gap-3">{children}</div>
-  </div>
-);
-
 const Label: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <label className="block text-[13px] text-gray-700 mb-1">{children}</label>
 );
@@ -163,8 +153,9 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete }: JobFo
       {/* Section Content */}
       <div className="space-y-4">
         {activeSection === 'details' && (
-          <Card title="Job Details" icon={<span>🧰</span>}>
-            <Field label="Title"><Input placeholder="Line Cook" defaultValue="Line Cook" /></Field>
+          <div className="bg-white border rounded-xl p-5 shadow-sm">
+            <div className="grid grid-cols-12 gap-3">
+              <Field label="Title"><Input placeholder="Line Cook" defaultValue="Line Cook" /></Field>
             <Field span="col-span-12" label="Location">
               <div className="relative" ref={locationDropdownRef}>
                 <button
@@ -208,11 +199,13 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete }: JobFo
                 onKeyDown={e => { if (e.key === 'Enter' && newSkill.trim()) { setSkills(p => [...p, newSkill.trim()]); setNewSkill(""); e.preventDefault(); } }}
               />
             </Field>
-          </Card>
+            </div>
+          </div>
         )}
 
         {activeSection === 'compensation' && (
-          <Card title="Compensation & Benefits" icon={<span>💵</span>}>
+          <div className="bg-white border rounded-xl p-5 shadow-sm">
+            <div className="grid grid-cols-12 gap-3">
             <Field span="col-span-12 lg:col-span-6">
               <label className="flex items-center gap-2 text-[13px] text-gray-700 mb-1 cursor-pointer">
                 <input
@@ -270,24 +263,28 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete }: JobFo
                 onKeyDown={e => { if (e.key === 'Enter' && newBenefit.trim()) { setBenefits(p => [...p, newBenefit.trim()]); setNewBenefit(""); e.preventDefault(); } }}
               />
             </Field>
-          </Card>
+            </div>
+          </div>
         )}
 
         {activeSection === 'schedule' && (
-          <Card title="Schedule Information" icon={<span>📅</span>}>
-            <Field label="Schedule Type">
+          <div className="bg-white border rounded-xl p-5 shadow-sm">
+            <div className="grid grid-cols-12 gap-3">
+              <Field label="Schedule Type">
               <select className="w-full h-9 px-2 rounded border border-gray-300">
                 <option>Full-time</option>
                 <option>Part-time</option>
                 <option>Flexible</option>
               </select>
             </Field>
-          </Card>
+            </div>
+          </div>
         )}
 
         {activeSection === 'questions' && (
-          <Card title="Application Questions" icon={<span>❓</span>}>
-            <div className="col-span-12 grid grid-cols-12 gap-3">
+          <div className="bg-white border rounded-xl p-5 shadow-sm">
+            <div className="grid grid-cols-12 gap-3">
+              <div className="col-span-12 grid grid-cols-12 gap-3">
               {questions.map((q, idx) => (
                 <div key={q.id} className="col-span-12 lg:col-span-6 border rounded p-3 bg-gray-50">
                   <div className="flex items-center justify-between mb-2">
@@ -351,11 +348,12 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete }: JobFo
                   </div>
                 </div>
               ))}
+              </div>
+              <div className="col-span-12">
+                <button onClick={addQuestion} className="text-sm text-blue-600 hover:underline">+ Add Question</button>
+              </div>
             </div>
-            <div className="col-span-12">
-              <button onClick={addQuestion} className="text-sm text-blue-600 hover:underline">+ Add Question</button>
-            </div>
-          </Card>
+          </div>
         )}
       </div>
 
