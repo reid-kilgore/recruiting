@@ -247,7 +247,7 @@ export default function CompanyInformationSection() {
           />
         </Field>
 
-        <Field span="col-span-12" label="Visual Media (4-up thumbnails)">
+        <Field span="col-span-12" label="Company Images">
           <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))' }}>
             {images.map((img, i) => (
               <div
