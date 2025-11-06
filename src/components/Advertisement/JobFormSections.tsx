@@ -1,4 +1,12 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
+
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+const formatDays = (days?: number[]): string => {
+  if (!days || days.length === 0) return '';
+  if (days.length === 7) return 'All days';
+  return days.map(d => DAYS[d]).join(', ');
+};
 
 const Label: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <label className="block text-[13px] text-gray-700 mb-1">{children}</label>
@@ -40,23 +48,47 @@ interface Question {
   newChoice: string;
 }
 
+interface TimeRange {
+  start: string;
+  end: string;
+  days?: number[]; // Array of day indices (0=Mon, 1=Tue, etc.)
+}
+
 interface JobFormSectionsProps {
   jobRole: string;
   onComplete?: () => void;
+  timeRanges?: TimeRange[];
+  selectedLocations: string[];
+  onFinalize: (jobRole: string) => void;
 }
 
-type SectionTab = 'details' | 'compensation' | 'schedule' | 'questions';
+type SectionTab = 'details' | 'compensation' | 'schedule' | 'questions' | 'preview';
 
-export default function JobFormSections({ jobRole: _jobRole, onComplete }: JobFormSectionsProps) {
+const SECTION_ORDER: SectionTab[] = ['details', 'compensation', 'schedule', 'questions', 'preview'];
+
+export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRanges, selectedLocations, onFinalize }: JobFormSectionsProps) {
   // jobRole is used by parent for identification, not displayed since it's shown in the tab
   const [activeSection, setActiveSection] = useState<SectionTab>('details');
+
+  const goToNextSection = () => {
+    const currentIndex = SECTION_ORDER.indexOf(activeSection);
+    if (currentIndex < SECTION_ORDER.length - 1) {
+      setActiveSection(SECTION_ORDER[currentIndex + 1]);
+    } else {
+      // On last section (preview), finalize
+      onFinalize(_jobRole);
+      if (onComplete) {
+        onComplete();
+      }
+    }
+  };
+
+  const isLastSection = activeSection === SECTION_ORDER[SECTION_ORDER.length - 1];
+  const buttonText = isLastSection ? 'Finalize' : 'Next →';
   const [skills, setSkills] = useState(["Food Handler", "POS (Square)"]);
   const [newSkill, setNewSkill] = useState("");
   const [benefits, setBenefits] = useState(["Health", "PTO"]);
   const [newBenefit, setNewBenefit] = useState("");
-  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
-  const [showLocationDropdown, setShowLocationDropdown] = useState(false);
-  const locationDropdownRef = useRef<HTMLDivElement>(null);
   const [payOption, setPayOption] = useState<"exact" | "range" | "omit">("exact");
   const [tipEligible, setTipEligible] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([
@@ -65,31 +97,6 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete }: JobFo
     { id: 3, type: "Multiple Choice", text: "", limit: "", choices: ["Option 1", "Option 2"], newChoice: "" },
     { id: 4, type: "Text", text: "", limit: "500", choices: [], newChoice: "" }
   ]);
-  const availableLocations = [
-    "123 Main St, Boston, MA",
-    "456 Second St, Cambridge, MA",
-    "789 Third Ave, Brookline, MA",
-    "321 Park Blvd, Somerville, MA"
-  ];
-
-  // Close location dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target as Node)) {
-        setShowLocationDropdown(false);
-      }
-    };
-    if (showLocationDropdown) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
-    }
-  }, [showLocationDropdown]);
-
-  const toggleLocation = (loc: string) => {
-    setSelectedLocations(prev =>
-      prev.includes(loc) ? prev.filter(l => l !== loc) : [...prev, loc]
-    );
-  };
 
   const addQuestion = () => {
     const newId = questions.length > 0 ? Math.max(...questions.map(q => q.id)) + 1 : 1;
@@ -127,7 +134,8 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete }: JobFo
     { id: 'details' as SectionTab, label: 'Job Details' },
     { id: 'compensation' as SectionTab, label: 'Compensation & Benefits' },
     { id: 'schedule' as SectionTab, label: 'Schedule Information' },
-    { id: 'questions' as SectionTab, label: 'Application Questions' }
+    { id: 'questions' as SectionTab, label: 'Application Questions' },
+    { id: 'preview' as SectionTab, label: 'Preview' }
   ];
 
   return (
@@ -157,35 +165,6 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete }: JobFo
           <div className="bg-white border rounded-xl p-5 shadow-sm">
             <div className="grid grid-cols-12 gap-3">
               <Field label="Title"><Input placeholder="Line Cook" defaultValue="Line Cook" /></Field>
-            <Field span="col-span-12" label="Location">
-              <div className="relative" ref={locationDropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setShowLocationDropdown(!showLocationDropdown)}
-                  className="w-full border rounded px-2 py-2 text-sm bg-white text-left flex items-center justify-between hover:bg-gray-50"
-                >
-                  <span className="truncate">
-                    {selectedLocations.length === 0 ? 'Select locations...' : selectedLocations.join('; ')}
-                  </span>
-                  <span className="ml-2">▼</span>
-                </button>
-                {showLocationDropdown && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-48 overflow-y-auto">
-                    {availableLocations.map((loc) => (
-                      <label key={loc} className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={selectedLocations.includes(loc)}
-                          onChange={() => toggleLocation(loc)}
-                          className="mr-2"
-                        />
-                        <span className="text-sm">{loc}</span>
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </Field>
 
             <Field span="col-span-12" label="Job Description">
               <Textarea placeholder="Describe duties and environment…" rows={4} />
@@ -290,6 +269,28 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete }: JobFo
                 <option>Flexible</option>
               </select>
             </Field>
+
+            <Field span="col-span-12" label="Priority Time Ranges">
+              {timeRanges && timeRanges.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {timeRanges.map((range, idx) => (
+                    <div
+                      key={idx}
+                      className="inline-flex flex-col bg-blue-100 text-blue-800 px-3 py-1 rounded text-sm"
+                    >
+                      <span className="font-medium">{range.start} - {range.end}</span>
+                      {range.days && range.days.length > 0 && (
+                        <span className="text-xs text-blue-600">{formatDays(range.days)}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500 italic">
+                  No time ranges selected. Go to the Demand tab to select time slots for this role.
+                </div>
+              )}
+            </Field>
             </div>
           </div>
         )}
@@ -368,22 +369,121 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete }: JobFo
             </div>
           </div>
         )}
+
+        {activeSection === 'preview' && (
+          <div className="bg-white border rounded-xl p-6 shadow-sm">
+            {/* Header */}
+            <div className="border-b pb-4 mb-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">{_jobRole}</h2>
+                  <div className="text-sm text-gray-600 mt-1">
+                    TechCorp Solutions • {selectedLocations.join(', ')}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Company Info */}
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">About the Company</h3>
+              <p className="text-sm text-gray-600">
+                We are a growing hospitality group operating two high‑volume concepts.
+              </p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Collaborative</span>
+                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Fast-paced</span>
+              </div>
+            </div>
+
+            {/* Job Description */}
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Job Description</h3>
+              <p className="text-sm text-gray-600">
+                Describe duties and environment…
+              </p>
+            </div>
+
+            {/* Skills */}
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Required Skills</h3>
+              <div className="flex flex-wrap gap-2">
+                {skills.map((s, i) => (
+                  <span key={i} className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs">{s}</span>
+                ))}
+              </div>
+            </div>
+
+            {/* Compensation */}
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Compensation & Benefits</h3>
+              <div className="text-sm text-gray-600 mb-2">
+                <span className="font-medium">Pay:</span> $18.50/hour
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {benefits.map((b, i) => (
+                  <span key={i} className="px-2 py-1 bg-green-50 text-green-700 rounded text-xs">{b}</span>
+                ))}
+              </div>
+              {tipEligible && (
+                <div className="mt-2 text-sm text-gray-600">
+                  <span className="font-medium">✓</span> Tip eligible position
+                </div>
+              )}
+            </div>
+
+            {/* Schedule */}
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Schedule</h3>
+              <div className="text-sm text-gray-600 mb-2">Full-time</div>
+              {timeRanges && timeRanges.length > 0 && (
+                <>
+                  <div className="text-xs font-medium text-gray-600 mb-1">Priority Time Ranges:</div>
+                  <div className="flex flex-wrap gap-2">
+                    {timeRanges.map((range, idx) => (
+                      <div key={idx} className="inline-flex flex-col bg-purple-50 text-purple-700 rounded px-2 py-1">
+                        <span className="text-xs font-mono font-medium">{range.start} - {range.end}</span>
+                        {range.days && range.days.length > 0 && (
+                          <span className="text-[10px] text-purple-600">{formatDays(range.days)}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Application Questions */}
+            <div className="mb-6">
+              <h3 className="text-sm font-semibold text-gray-700 mb-2">Application Questions</h3>
+              <div className="space-y-2 text-sm text-gray-600">
+                {questions.map((q, idx) => (
+                  <div key={q.id}>
+                    {idx + 1}. {q.type} question {q.limit && `(${q.limit} ${q.type === 'Video' ? 'second' : 'character'} limit)`}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Action Buttons */}
-      {onComplete && (
-        <div className="flex justify-between items-center pt-4 border-t">
-          <div className="text-sm text-gray-500 italic">
-            Changes are saved automatically
-          </div>
-          <button
-            onClick={onComplete}
-            className="px-6 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition"
-          >
-            Mark as Complete ✓
-          </button>
+      <div className="flex justify-between items-center pt-4 border-t">
+        <div className="text-sm text-gray-500 italic">
+          Changes are saved automatically
         </div>
-      )}
+        <button
+          onClick={goToNextSection}
+          className={`px-6 py-2 rounded-lg font-medium transition ${
+            isLastSection
+              ? 'bg-green-600 text-white hover:bg-green-700'
+              : 'bg-blue-600 text-white hover:bg-blue-700'
+          }`}
+        >
+          {isLastSection ? 'Mark as Complete ✓' : 'Next →'}
+        </button>
+      </div>
     </div>
   );
 }

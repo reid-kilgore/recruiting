@@ -8,11 +8,13 @@ import { useMemo, useState, useRef, useEffect } from "react"
 // - Clean JSX/paren closure; tests included
 
 const DAYS = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"]
-const HALF_HOUR_SLOTS = Array.from({ length: 48 }, (_, i) => {
+// Filter slots to start at 8am (index 16 = 8:00am)
+const ALL_HALF_HOUR_SLOTS = Array.from({ length: 48 }, (_, i) => {
   const h = Math.floor(i / 2)
   const m = i % 2 === 0 ? "00" : "30"
-  return `${h.toString().padStart(2,'0')}:${m}`
+  return { time: `${h.toString().padStart(2,'0')}:${m}`, index: i }
 })
+const HALF_HOUR_SLOTS = ALL_HALF_HOUR_SLOTS.filter(slot => slot.index >= 16) // 8am onwards
 
 const COLORS = {
   green: "#10b981",
@@ -99,14 +101,59 @@ function rollMonth(year: number, month: number, delta: number) {
   return { year: d.getFullYear(), month: d.getMonth() }
 }
 
+interface TimeRange {
+  start: string;
+  end: string;
+  days?: number[]; // Array of day indices (0=Mon, 1=Tue, etc.)
+}
+
+interface Campaign {
+  id: string;
+  name: string;
+  createdAt: string;
+  status: 'active' | 'suspended' | 'draft';
+  locations: string[];
+  jobs: string[];
+  startDate: string;
+  endDate?: string;
+  endBudget?: number;
+  endHires?: number;
+  endMode: 'date' | 'budget' | 'hires';
+  timeRanges?: TimeRange[];
+}
+
+interface JobFormData {
+  role: string;
+  completed: boolean;
+  data: any;
+  timeRanges?: TimeRange[];
+}
+
 interface PlanningScreenProps {
   selectedJobs: string[];
   setSelectedJobs: (jobs: string[]) => void;
   selectedLocations: string[];
   setSelectedLocations: (locations: string[]) => void;
+  jobForms: JobFormData[];
+  setJobForms: React.Dispatch<React.SetStateAction<JobFormData[]>>;
 }
 
-export default function PlanningScreen({ selectedJobs, setSelectedJobs, selectedLocations, setSelectedLocations }: PlanningScreenProps) {
+const CAMPAIGNS: Campaign[] = [
+  { id:'c7', name:'Summer Hiring Blitz', createdAt:'2025-11-01', status: 'active', locations: ['BOS', 'LGA'], jobs: ['Server', 'Host'], startDate: '2025-11-01', endDate: '2025-12-15', endMode: 'date', timeRanges: [{ start: '11:00', end: '14:00' }, { start: '17:00', end: '22:00' }] },
+  { id:'c6', name:'Q4 Expansion', createdAt:'2025-10-25', status: 'suspended', locations: ['DCA'], jobs: ['Cook', 'Server'], startDate: '2025-10-25', endBudget: 5000, endMode: 'budget', timeRanges: [{ start: '08:00', end: '16:00' }] },
+  { id:'c5', name:'Weekend Warriors', createdAt:'2025-10-18', status: 'active', locations: ['BOS'], jobs: ['Bartender', 'Server'], startDate: '2025-10-18', endHires: 15, endMode: 'hires', timeRanges: [{ start: '18:00', end: '23:00' }] },
+  { id:'c4', name:'New Menu Launch', createdAt:'2025-10-15', status: 'active', locations: ['LGA', 'DCA'], jobs: ['Cook'], startDate: '2025-10-15', endDate: '2025-11-30', endMode: 'date', timeRanges: [{ start: '09:00', end: '17:00' }] },
+  { id:'c3', name:'New Location Opening', createdAt:'2025-10-14', status: 'active', locations: ['ORD'], jobs: ['Cook', 'Server', 'Host'], startDate: '2025-10-14', endDate: '2025-12-01', endMode: 'date', timeRanges: [{ start: '10:00', end: '22:00' }] },
+  { id:'c2', name:'Weekend Staffing', createdAt:'2025-09-28', status: 'suspended', locations: ['BOS', 'LGA'], jobs: ['Server'], startDate: '2025-09-28', endBudget: 3000, endMode: 'budget', timeRanges: [{ start: '17:00', end: '23:00' }] },
+  { id:'c1', name:'Holiday Surge', createdAt:'2025-08-31', status: 'active', locations: ['BOS'], jobs: ['Cook', 'Server', 'Bartender'], startDate: '2025-08-31', endDate: '2025-12-25', endMode: 'date', timeRanges: [{ start: '11:00', end: '15:00' }, { start: '17:00', end: '21:00' }] },
+];
+
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+export default function PlanningScreen({ selectedJobs, setSelectedJobs, selectedLocations, setSelectedLocations, jobForms, setJobForms }: PlanningScreenProps) {
   const availableLocations = ['BOS', 'LGA', 'DCA', 'ORD']
   const roles = [
     { role: "Cook", demand: 10, supply: 7 },
@@ -114,7 +161,12 @@ export default function PlanningScreen({ selectedJobs, setSelectedJobs, selected
     { role: "Bartender", demand: 5, supply: 3 },
     { role: "Host", demand: 4, supply: 5 }
   ]
+  const [campaigns] = useState(CAMPAIGNS)
   const [selectedRole, setSelectedRole] = useState(roles[0].role)
+  const [selectedSlots, setSelectedSlots] = useState<Set<string>>(new Set()) // Format: "day-slotIndex"
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null)
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStartCell, setDragStartCell] = useState<{day: number, slot: number} | null>(null)
   const [viewMode, setViewMode] = useState<'week'|'month'|'year'>('week')
   const [showLegend, setShowLegend] = useState(false)
   const [weekOffset, setWeekOffset] = useState(0)
@@ -153,6 +205,161 @@ export default function PlanningScreen({ selectedJobs, setSelectedJobs, selected
     )
   }
 
+  const handleCellMouseDown = (day: number, slotIndex: number) => {
+    setIsDragging(true)
+    setDragStartCell({ day, slot: slotIndex })
+    toggleCell(day, slotIndex)
+  }
+
+  const handleCellMouseEnter = (day: number, slotIndex: number) => {
+    if (isDragging && dragStartCell && dragStartCell.day === day) {
+      // Only drag within the same day column
+      const minSlot = Math.min(dragStartCell.slot, slotIndex)
+      const maxSlot = Math.max(dragStartCell.slot, slotIndex)
+
+      const newSelected = new Set(selectedSlots)
+      for (let slot = minSlot; slot <= maxSlot; slot++) {
+        const key = `${day}-${slot}`
+        newSelected.add(key)
+      }
+      setSelectedSlots(newSelected)
+      updateTimeRanges(newSelected)
+    }
+  }
+
+  const handleMouseUp = () => {
+    setIsDragging(false)
+    setDragStartCell(null)
+  }
+
+  const toggleCell = (day: number, slotIndex: number) => {
+    const key = `${day}-${slotIndex}`
+    const newSelected = new Set(selectedSlots)
+    if (newSelected.has(key)) {
+      newSelected.delete(key)
+    } else {
+      newSelected.add(key)
+    }
+    setSelectedSlots(newSelected)
+    updateTimeRanges(newSelected)
+  }
+
+  const updateTimeRanges = (slots: Set<string>) => {
+    const timeRanges = convertSlotsToTimeRanges(slots)
+    const currentJobForm = jobForms.find(f => f.role === selectedRole)
+    if (currentJobForm) {
+      setJobForms(prev => prev.map(f =>
+        f.role === selectedRole ? { ...f, timeRanges } : f
+      ))
+    }
+  }
+
+  const convertSlotsToTimeRanges = (slots: Set<string>): TimeRange[] => {
+    if (slots.size === 0) return []
+
+    // Group slots by day first
+    const slotsByDay = new Map<number, number[]>()
+    slots.forEach(key => {
+      const [dayStr, slotStr] = key.split('-')
+      const day = Number(dayStr)
+      const slot = Number(slotStr)
+      if (!slotsByDay.has(day)) {
+        slotsByDay.set(day, [])
+      }
+      slotsByDay.get(day)!.push(slot)
+    })
+
+    // For each day, create time ranges for consecutive slots
+    const rangesByDay: Array<{ day: number; start: string; end: string }> = []
+
+    slotsByDay.forEach((daySlots, day) => {
+      const sortedSlots = daySlots.sort((a, b) => a - b)
+      let rangeStart = sortedSlots[0]
+      let rangeEnd = sortedSlots[0]
+
+      for (let i = 1; i <= sortedSlots.length; i++) {
+        const currentSlot = sortedSlots[i]
+        const prevSlot = sortedSlots[i - 1]
+
+        if (i === sortedSlots.length || currentSlot !== prevSlot + 1) {
+          const startHour = Math.floor(rangeStart / 2)
+          const startMin = rangeStart % 2 === 0 ? '00' : '30'
+          const endHour = Math.floor((rangeEnd + 1) / 2)
+          const endMin = (rangeEnd + 1) % 2 === 0 ? '00' : '30'
+
+          rangesByDay.push({
+            day,
+            start: `${startHour.toString().padStart(2, '0')}:${startMin}`,
+            end: `${endHour.toString().padStart(2, '0')}:${endMin}`
+          })
+
+          if (i < sortedSlots.length) {
+            rangeStart = currentSlot
+            rangeEnd = currentSlot
+          }
+        } else {
+          rangeEnd = currentSlot
+        }
+      }
+    })
+
+    // Group ranges with same start/end times and collect their days
+    const rangeMap = new Map<string, number[]>()
+    rangesByDay.forEach(({ day, start, end }) => {
+      const key = `${start}-${end}`
+      if (!rangeMap.has(key)) {
+        rangeMap.set(key, [])
+      }
+      rangeMap.get(key)!.push(day)
+    })
+
+    // Convert to TimeRange array with sorted days
+    const ranges: TimeRange[] = []
+    rangeMap.forEach((days, key) => {
+      const [start, end] = key.split('-')
+      ranges.push({
+        start,
+        end,
+        days: days.sort((a, b) => a - b)
+      })
+    })
+
+    // Sort ranges by start time
+    return ranges.sort((a, b) => a.start.localeCompare(b.start))
+  }
+
+  // Load selected slots when role changes
+  useEffect(() => {
+    const currentJobForm = jobForms.find(f => f.role === selectedRole)
+    if (currentJobForm?.timeRanges) {
+      const slots = new Set<string>()
+      currentJobForm.timeRanges.forEach(range => {
+        const [startHour, startMin] = range.start.split(':').map(Number)
+        const [endHour, endMin] = range.end.split(':').map(Number)
+        const startSlot = startHour * 2 + (startMin === 30 ? 1 : 0)
+        const endSlot = endHour * 2 + (endMin === 30 ? 1 : 0)
+
+        // Add for all days
+        for (let day = 0; day < 7; day++) {
+          for (let i = startSlot; i < endSlot; i++) {
+            slots.add(`${day}-${i}`)
+          }
+        }
+      })
+      setSelectedSlots(slots)
+    } else {
+      setSelectedSlots(new Set())
+    }
+    // Only sync when role changes, not when jobForms updates
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRole])
+
+  // Add global mouse up handler
+  useEffect(() => {
+    document.addEventListener('mouseup', handleMouseUp)
+    return () => document.removeEventListener('mouseup', handleMouseUp)
+  }, [])
+
   const weekMatrix = useMemo(() => genWeek(selectedRole, weekOffset), [selectedRole, weekOffset])
   const weekStart = useMemo(() => mondayOf(weekOffset), [weekOffset])
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart])
@@ -186,7 +393,7 @@ export default function PlanningScreen({ selectedJobs, setSelectedJobs, selected
       <div className="flex flex-1 overflow-hidden">
         {route === 'plan' ? (
           <>
-            {/* Left Panel: Roles list */}
+            {/* Left Panel: Roles list and Campaigns */}
             <div className="w-1/4 overflow-y-auto p-4 space-y-3">
               {/* Location Selector */}
               <div className="mb-3">
@@ -197,13 +404,13 @@ export default function PlanningScreen({ selectedJobs, setSelectedJobs, selected
                     className="w-full border rounded px-3 py-2 text-sm bg-white text-left flex items-center justify-between hover:bg-gray-50"
                   >
                     <span className="truncate">
-                      {selectedLocations.length === 0 
-                        ? 'Select Locations...' 
+                      {selectedLocations.length === 0
+                        ? 'Select Locations...'
                         : `Locations: ${selectedLocations.join(', ')}`}
                     </span>
                     <span className="ml-2">▼</span>
                   </button>
-                  
+
                   {showLocationDropdown && (
                     <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-48 overflow-y-auto">
                       {availableLocations.map((location) => (
@@ -224,7 +431,8 @@ export default function PlanningScreen({ selectedJobs, setSelectedJobs, selected
                   )}
                 </div>
               </div>
-              
+
+              {/* Roles Section */}
               {roles.map((r) => {
                 const gap = r.demand - r.supply
                 const pct = Math.max(0, Math.min(100, (r.supply / Math.max(1, r.demand)) * 100))
@@ -269,6 +477,52 @@ export default function PlanningScreen({ selectedJobs, setSelectedJobs, selected
                   </div>
                 )
               })}
+
+              {/* Campaigns Section */}
+              <div className="mt-6 pt-4 border-t">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3">Active Campaigns</h3>
+                <div className="space-y-2">
+                  {campaigns.map((campaign) => {
+                    let rightText = '';
+                    if (campaign.endMode === 'date' && campaign.endDate) {
+                      rightText = `${formatDate(campaign.startDate)} - ${formatDate(campaign.endDate)}`;
+                    } else if (campaign.endMode === 'hires' && campaign.endHires) {
+                      rightText = `Target: ${campaign.endHires} hires`;
+                    } else if (campaign.endMode === 'budget' && campaign.endBudget) {
+                      rightText = `Budget: $${campaign.endBudget.toLocaleString()}`;
+                    }
+
+                    return (
+                      <div
+                        key={campaign.id}
+                        onClick={() => setSelectedCampaign(campaign.id === selectedCampaign?.id ? null : campaign)}
+                        className={`border rounded p-2 text-xs cursor-pointer transition ${
+                          selectedCampaign?.id === campaign.id
+                            ? 'bg-purple-100 border-purple-400 ring-2 ring-purple-400'
+                            : campaign.status === 'active'
+                            ? 'bg-green-50 border-green-200 hover:bg-green-100'
+                            : 'bg-gray-50 border-gray-200 hover:bg-gray-100 opacity-60'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium truncate flex-1">{campaign.name}</span>
+                          {campaign.status === 'active' && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-600 text-white">
+                              ACTIVE
+                            </span>
+                          )}
+                          {campaign.status === 'suspended' && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-400 text-white">
+                              SUSPENDED
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-gray-600 text-[11px]">{rightText}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
 
             {/* Right Panel: Details + Heatmap */}
@@ -322,7 +576,13 @@ export default function PlanningScreen({ selectedJobs, setSelectedJobs, selected
               {/* Views */}
               <div className="flex-1 overflow-auto">
                 {viewMode === 'week' && (
-                  <WeekGrid weekMatrix={weekMatrix} />
+                  <WeekGrid
+                    weekMatrix={weekMatrix}
+                    selectedSlots={selectedSlots}
+                    selectedCampaign={selectedCampaign}
+                    onCellMouseDown={handleCellMouseDown}
+                    onCellMouseEnter={handleCellMouseEnter}
+                  />
                 )}
                 {viewMode === 'month' && (
                   <MonthGrid
@@ -361,7 +621,33 @@ export default function PlanningScreen({ selectedJobs, setSelectedJobs, selected
   )
 }
 
-function WeekGrid({ weekMatrix }: { weekMatrix: { demand: number; supply: number; closed: boolean }[][] }) {
+function WeekGrid({
+  weekMatrix,
+  selectedSlots,
+  selectedCampaign,
+  onCellMouseDown,
+  onCellMouseEnter
+}: {
+  weekMatrix: { demand: number; supply: number; closed: boolean }[][]
+  selectedSlots: Set<string>
+  selectedCampaign: Campaign | null
+  onCellMouseDown: (day: number, slotIndex: number) => void
+  onCellMouseEnter: (day: number, slotIndex: number) => void
+}) {
+  // Convert campaign time ranges to slot set
+  const campaignSlots = new Set<number>()
+  if (selectedCampaign?.timeRanges) {
+    selectedCampaign.timeRanges.forEach(range => {
+      const [startHour, startMin] = range.start.split(':').map(Number)
+      const [endHour, endMin] = range.end.split(':').map(Number)
+      const startSlot = startHour * 2 + (startMin === 30 ? 1 : 0)
+      const endSlot = endHour * 2 + (endMin === 30 ? 1 : 0)
+
+      for (let i = startSlot; i < endSlot; i++) {
+        campaignSlots.add(i)
+      }
+    })
+  }
   return (
     <div className="min-w-[720px]">
       {/* Column headers with 2px gaps between day columns */}
@@ -373,27 +659,44 @@ function WeekGrid({ weekMatrix }: { weekMatrix: { demand: number; supply: number
       </div>
       {/* Rows: 10px data row + 2px separator row per half-hour */}
       <div className="max-h-[520px] overflow-auto">
-        {HALF_HOUR_SLOTS.map((t, rowIdx) => {
-          const hour = Math.floor(rowIdx / 2)
-          const isFullHour = rowIdx % 2 === 0
+        {HALF_HOUR_SLOTS.map((slot) => {
+          const slotIndex = slot.index
+          const hour = Math.floor(slotIndex / 2)
+          const isFullHour = slotIndex % 2 === 0
           const showLabel = isFullHour && (hour % 2 === 0) // label every 2 hours
           const hourLabel = `${hour.toString().padStart(2,'0')}:00`
+          const isCampaignSlot = campaignSlots.has(slotIndex)
+
           return (
-            <div key={t}>
-              <div className="grid" style={{ gridTemplateColumns: `60px repeat(7, 1fr)`, columnGap: '2px' }}>
+            <div key={slot.time}>
+              <div
+                className="grid"
+                style={{ gridTemplateColumns: `60px repeat(7, 1fr)`, columnGap: '2px' }}
+              >
                 <div className="relative h-[10px] sticky left-0 bg-white">
                   {showLabel && (
                     <span className="absolute -translate-y-2 text-[9px] leading-none text-gray-500">{hourLabel}</span>
                   )}
                 </div>
                 {weekMatrix.map((daySlots, dayIdx) => {
-                  const { demand, supply, closed } = daySlots[rowIdx]
+                  const { demand, supply, closed } = daySlots[slotIndex]
                   const bg = closed ? COLORS.closed : cellColor(demand, supply)
+                  const cellKey = `${dayIdx}-${slotIndex}`
+                  const isSelected = selectedSlots.has(cellKey)
+
                   return (
                     <div
-                      key={`${dayIdx}-${rowIdx}`}
-                      title={`D:${demand} S:${supply}${closed?' (closed)':''}`}
-                      style={{ height: '10px', background: bg }}
+                      key={cellKey}
+                      title={`${slot.time} - D:${demand} S:${supply}${closed?' (closed)':''}`}
+                      className="cursor-pointer hover:opacity-80"
+                      onMouseDown={() => onCellMouseDown(dayIdx, slotIndex)}
+                      onMouseEnter={() => onCellMouseEnter(dayIdx, slotIndex)}
+                      style={{
+                        height: '10px',
+                        background: isCampaignSlot ? '#a78bfa' : bg,
+                        outline: isSelected ? '2px solid #3b82f6' : 'none',
+                        outlineOffset: '-2px'
+                      }}
                     />
                   )
                 })}

@@ -2,13 +2,32 @@ import { useState, useEffect } from 'react';
 import PlanningScreen from './components/DemandForecast/PlanningScreen';
 import CampaignManager from './components/Campaign/CampaignManager';
 import AdvertisementManager from './components/Advertisement/AdvertisementManager';
+import CompanyProfile from './components/CompanyProfile/CompanyProfile';
+import JobPostingPreview from './components/Preview/JobPostingPreview';
 
-type Tab = 'demand' | 'advertisement' | 'campaign' | 'review';
+type Tab = 'demand' | 'profile' | 'advertisement' | 'campaign' | 'review';
+
+interface TimeRange {
+  start: string; // e.g., "08:00"
+  end: string;   // e.g., "17:00"
+  days?: number[]; // Array of day indices (0=Mon, 1=Tue, etc.)
+}
 
 interface JobFormData {
   role: string;
   completed: boolean;
   data: any; // Store form data for each job
+  timeRanges?: TimeRange[];
+}
+
+interface FinalizedJob {
+  id: string;
+  role: string;
+  locations: string[];
+  timeRanges: TimeRange[];
+  formData: any;
+  companyData: any;
+  finalizedAt: string;
 }
 
 export default function PasscomRecruitingApp() {
@@ -21,6 +40,15 @@ export default function PasscomRecruitingApp() {
   const [selectedJobs, setSelectedJobs] = useState<string[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [jobForms, setJobForms] = useState<JobFormData[]>([]);
+  // Store finalized job postings in memory for later use
+  const [finalizedJobs, setFinalizedJobs] = useState<FinalizedJob[]>([]);
+
+  // Log finalized jobs when they change (for debugging)
+  useEffect(() => {
+    if (finalizedJobs.length > 0) {
+      console.log('Finalized jobs:', finalizedJobs);
+    }
+  }, [finalizedJobs]);
 
   // Update job forms when selected jobs change
   useEffect(() => {
@@ -38,8 +66,32 @@ export default function PasscomRecruitingApp() {
     localStorage.setItem('passcom-recruiting-active-tab', activeTab);
   }, [activeTab]);
 
+  const handleFinalizeJob = (jobRole: string) => {
+    const job = jobForms.find(j => j.role === jobRole);
+    if (!job) return;
+
+    const finalizedJob: FinalizedJob = {
+      id: `job-${Date.now()}-${jobRole}`,
+      role: job.role,
+      locations: selectedLocations,
+      timeRanges: job.timeRanges || [],
+      formData: job.data,
+      companyData: {
+        name: 'TechCorp Solutions',
+        description: 'We are a growing hospitality group operating two high‑volume concepts.',
+        culture: ['Collaborative', 'Fast-paced']
+      },
+      finalizedAt: new Date().toISOString()
+    };
+
+    setFinalizedJobs(prev => [...prev, finalizedJob]);
+    console.log('Finalized job posting:', finalizedJob);
+    alert(`Job posting for ${jobRole} has been finalized and saved!`);
+  };
+
   const tabs: { id: Tab; label: string }[] = [
     { id: 'demand', label: 'Demand' },
+    { id: 'profile', label: 'Company Profile' },
     { id: 'advertisement', label: 'Advertisement' },
     { id: 'campaign', label: 'Campaign' },
     { id: 'review', label: 'Review' }
@@ -106,25 +158,35 @@ export default function PasscomRecruitingApp() {
       <div className="flex-1 overflow-hidden">
         {activeTab === 'demand' && (
           <div className="h-full">
-            <PlanningScreen 
-              selectedJobs={selectedJobs} 
+            <PlanningScreen
+              selectedJobs={selectedJobs}
               setSelectedJobs={setSelectedJobs}
               selectedLocations={selectedLocations}
               setSelectedLocations={setSelectedLocations}
-            />
-          </div>
-        )}
-        
-        {activeTab === 'advertisement' && (
-          <div className="h-full overflow-auto bg-gray-50">
-            <AdvertisementManager
-              selectedJobs={selectedJobs}
               jobForms={jobForms}
               setJobForms={setJobForms}
             />
           </div>
         )}
-        
+
+        {activeTab === 'profile' && (
+          <div className="h-full overflow-auto bg-gray-50">
+            <CompanyProfile />
+          </div>
+        )}
+
+        {activeTab === 'advertisement' && (
+          <div className="h-full overflow-auto bg-gray-50">
+            <AdvertisementManager
+              selectedJobs={selectedJobs}
+              selectedLocations={selectedLocations}
+              jobForms={jobForms}
+              setJobForms={setJobForms}
+              onFinalize={handleFinalizeJob}
+            />
+          </div>
+        )}
+
         {activeTab === 'campaign' && (
           <div className="h-full overflow-auto">
             <CampaignManager
@@ -135,7 +197,7 @@ export default function PasscomRecruitingApp() {
             />
           </div>
         )}
-        
+
         {activeTab === 'review' && (
           <div className="h-full flex items-center justify-center">
             <div className="text-center">
