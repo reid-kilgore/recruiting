@@ -3,7 +3,6 @@ import PlanningScreen from './components/DemandForecast/PlanningScreen';
 import CampaignManager from './components/Campaign/CampaignManager';
 import AdvertisementManager from './components/Advertisement/AdvertisementManager';
 import CompanyProfile from './components/CompanyProfile/CompanyProfile';
-import JobPostingPreview from './components/Preview/JobPostingPreview';
 
 type Tab = 'demand' | 'advertisement' | 'campaign' | 'review' | 'profile';
 

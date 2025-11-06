@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 
 // ===============================
 // Campaign Manager – compact, robust single file (JSX only)
@@ -113,7 +113,7 @@ interface CampaignManagerProps {
   setOpenNewCampaignModal: (open: boolean) => void;
 }
 
-export default function CampaignManager({ selectedLocations, setSelectedLocations, selectedJobs, setSelectedJobs, advertisements, openNewCampaignModal, setOpenNewCampaignModal }: CampaignManagerProps){
+export default function CampaignManager({ selectedLocations: _selectedLocations, setSelectedLocations, selectedJobs: _selectedJobs, setSelectedJobs, advertisements, openNewCampaignModal, setOpenNewCampaignModal }: CampaignManagerProps){
   const [campaigns, setCampaigns] = useState(
     [...CAMPAIGNS].sort((a,b)=> new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   );
@@ -130,7 +130,7 @@ export default function CampaignManager({ selectedLocations, setSelectedLocation
   // Default date range: today → +27 days
   const today = new Date();
   const fourWeeksOut = new Date(today); fourWeeksOut.setDate(today.getDate()+27);
-  const [dateRange, setDateRange] = useState(()=>({ start: isoDate(today), end: isoDate(fourWeeksOut) }));
+  const [dateRange] = useState(()=>({ start: isoDate(today), end: isoDate(fourWeeksOut) }));
 
   // build daily series for chart
   const days = useMemo(()=>{
@@ -180,11 +180,7 @@ export default function CampaignManager({ selectedLocations, setSelectedLocation
             activeId={activeId}
             setActiveId={setActiveId}
             setCampaigns={setCampaigns}
-            dateRange={dateRange}
-            setDateRange={setDateRange}
             onSelectCampaign={handleSelectCampaign}
-            selectedLocations={selectedLocations}
-            selectedJobs={selectedJobs}
             advertisements={advertisements}
             showNewCampaignModal={openNewCampaignModal}
             setShowNewCampaignModal={setOpenNewCampaignModal}
@@ -540,11 +536,7 @@ interface CampaignsWindowProps {
   activeId: string;
   setActiveId: (id: string) => void;
   setCampaigns: React.Dispatch<React.SetStateAction<Campaign[]>>;
-  dateRange: { start: string; end: string };
-  setDateRange: React.Dispatch<React.SetStateAction<{ start: string; end: string }>>;
   onSelectCampaign: (campaign: Campaign) => void;
-  selectedLocations: string[];
-  selectedJobs: string[];
   advertisements: Advertisement[];
   showNewCampaignModal: boolean;
   setShowNewCampaignModal: (show: boolean) => void;
@@ -554,131 +546,13 @@ function CampaignsWindow(props: CampaignsWindowProps){
   const {
     campaigns = [],
     activeId,
-    setActiveId = ()=>{},
-    setCampaigns = ()=>{},
-    dateRange: incomingDateRange,
-    setDateRange = ()=>{},
+    setActiveId,
+    setCampaigns,
     onSelectCampaign,
-    selectedLocations,
-    selectedJobs,
     advertisements = [],
     showNewCampaignModal,
     setShowNewCampaignModal,
   } = props || {};
-
-  const today = new Date();
-  const defaultStart = isoDate(today);
-  const tmpEnd = new Date(today); tmpEnd.setDate(today.getDate()+30);
-  const defaultEnd = isoDate(tmpEnd);
-  const dateRange = (incomingDateRange && typeof incomingDateRange === 'object')
-    ? { start: incomingDateRange.start || defaultStart, end: incomingDateRange.end || defaultEnd }
-    : { start: defaultStart, end: defaultEnd };
-
-  const [name, setName] = useState('');
-  const [start, setStart] = useState(dateRange.start);
-  const [endMode, setEndMode] = useState<'budget' | 'hires' | 'date'>('date');
-  const [endBudget, setEndBudget] = useState(1000);
-  const [endHires, setEndHires] = useState(10);
-  const [endDate, setEndDate] = useState(dateRange.end);
-  const [campaignStatus, setCampaignStatus] = useState<'active' | 'suspended' | 'draft'>('draft');
-
-  // Populate form when a campaign is selected (only when activeId changes)
-  useEffect(() => {
-    const selectedCampaign = campaigns.find(c => c.id === activeId);
-    if (selectedCampaign) {
-      setName(selectedCampaign.name);
-      setStart(selectedCampaign.startDate);
-      setEndMode(selectedCampaign.endMode);
-      setEndBudget(selectedCampaign.endBudget || 1000);
-      setEndHires(selectedCampaign.endHires || 10);
-      setEndDate(selectedCampaign.endDate || dateRange.end);
-      setCampaignStatus(selectedCampaign.status);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeId]); // Only re-run when campaign selection changes, not on every campaigns array update
-
-  const saveStart = (v: string)=>{ setStart(v); setDateRange((r)=>({...(r||{}), start:v})); };
-  const saveEnd   = (v: string)=>{ setEndDate(v); setEndMode('date'); setDateRange((r)=>({...(r||{}), end:v})); };
-
-  const handleLaunchSuspend = () => {
-    const newStatus: 'active' | 'suspended' = campaignStatus === 'active' ? 'suspended' : 'active';
-    setCampaignStatus(newStatus);
-    
-    // Check if this campaign already exists in the list
-    const existingCampaign = campaigns.find(c => c.id === activeId);
-    
-    if (existingCampaign) {
-      // Update existing campaign status (includes copied campaigns)
-      setCampaigns(prev => prev.map(c => 
-        c.id === activeId ? { ...c, status: newStatus } : c
-      ));
-    } else if (campaignStatus === 'draft' && name.trim()) {
-      // Create a brand new campaign (only if it doesn't exist yet)
-      const newCampaign: Campaign = {
-        id: `c${Date.now()}`,
-        name: name.trim(),
-        createdAt: new Date().toISOString().slice(0, 10),
-        sources: DEFAULT_SOURCES,
-        status: newStatus,
-        locations: selectedLocations,
-        jobs: selectedJobs,
-        startDate: start,
-        endDate: endMode === 'date' ? endDate : undefined,
-        endBudget: endMode === 'budget' ? endBudget : undefined,
-        endHires: endMode === 'hires' ? endHires : undefined,
-        endMode: endMode,
-      };
-      setCampaigns(prev => [newCampaign, ...prev]);
-      setActiveId(newCampaign.id);
-    }
-  };
-
-  const handleSave = () => {
-    // Save current campaign changes
-    setCampaigns(prev => prev.map(c => 
-      c.id === activeId ? {
-        ...c,
-        name,
-        startDate: start,
-        endDate: endMode === 'date' ? endDate : undefined,
-        endBudget: endMode === 'budget' ? endBudget : undefined,
-        endHires: endMode === 'hires' ? endHires : undefined,
-        endMode: endMode,
-      } : c
-    ));
-  };
-
-  const handleCopy = () => {
-    const currentCampaign = campaigns.find(c => c.id === activeId);
-    if (currentCampaign) {
-      // Create a new campaign with copied data
-      const copiedCampaign: Campaign = {
-        ...currentCampaign,
-        id: `c${Date.now()}`,
-        name: `${currentCampaign.name} (Copy)`,
-        status: 'draft',
-        createdAt: new Date().toISOString().slice(0, 10),
-      };
-      
-      // Add to campaigns list and select it
-      setCampaigns(prev => [copiedCampaign, ...prev]);
-      setActiveId(copiedCampaign.id);
-      
-      // Form fields will auto-populate via useEffect when activeId changes
-    }
-  };
-
-  const handleDelete = () => {
-    const currentCampaign = campaigns.find(c => c.id === activeId);
-    if (currentCampaign && window.confirm(`Are you sure you want to delete "${currentCampaign.name}"? This action cannot be undone.`)) {
-      setCampaigns(prev => prev.filter(c => c.id !== activeId));
-      // Select the first remaining campaign or clear if none left
-      const remaining = campaigns.filter(c => c.id !== activeId);
-      if (remaining.length > 0) {
-        setActiveId(remaining[0].id);
-      }
-    }
-  };
 
   const previewRows = useMemo(()=>{
     return (campaigns || []).map((c)=>{
@@ -760,8 +634,6 @@ function CampaignsWindow(props: CampaignsWindowProps){
             setActiveId(newCampaign.id);
             setShowNewCampaignModal(false);
           }}
-          selectedLocations={selectedLocations}
-          selectedJobs={selectedJobs}
         />
       )}
     </div>
@@ -776,11 +648,9 @@ interface NewCampaignModalProps {
   campaigns: Campaign[];
   onClose: () => void;
   onCreateCampaign: (campaign: Campaign) => void;
-  selectedLocations: string[];
-  selectedJobs: string[];
 }
 
-function NewCampaignModal({ advertisements, campaigns, onClose, onCreateCampaign, selectedLocations, selectedJobs }: NewCampaignModalProps) {
+function NewCampaignModal({ advertisements, campaigns, onClose, onCreateCampaign }: NewCampaignModalProps) {
   const [selectedAdId, setSelectedAdId] = useState<string>('');
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState(isoDate(new Date()));

@@ -154,7 +154,7 @@ function formatDate(dateStr: string): string {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export default function PlanningScreen({ selectedJobs, setSelectedJobs, selectedLocations, setSelectedLocations, jobForms, setJobForms, onStartHiring }: PlanningScreenProps) {
+export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelectedJobs, selectedLocations, setSelectedLocations, jobForms, setJobForms, onStartHiring }: PlanningScreenProps) {
   const availableLocations = ['BOS', 'LGA', 'DCA', 'ORD']
   const roles = [
     { role: "Cook", demand: 10, supply: 7 },
@@ -189,14 +189,6 @@ export default function PlanningScreen({ selectedJobs, setSelectedJobs, selected
       return () => document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [showLocationDropdown])
-
-  const toggleJobSelection = (role: string) => {
-    setSelectedJobs(
-      selectedJobs.includes(role) 
-        ? selectedJobs.filter(r => r !== role)
-        : [...selectedJobs, role]
-    )
-  }
 
   const toggleLocationSelection = (location: string) => {
     setSelectedLocations(
