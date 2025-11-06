@@ -58,6 +58,7 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete }: JobFo
   const [showLocationDropdown, setShowLocationDropdown] = useState(false);
   const locationDropdownRef = useRef<HTMLDivElement>(null);
   const [payOption, setPayOption] = useState<"exact" | "range" | "omit">("exact");
+  const [tipEligible, setTipEligible] = useState(false);
   const [questions, setQuestions] = useState<Question[]>([
     { id: 1, type: "Text", text: "", limit: "500", choices: [], newChoice: "" },
     { id: 2, type: "Video", text: "", limit: "60", choices: [], newChoice: "" },
@@ -262,6 +263,18 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete }: JobFo
                 onChange={e => setNewBenefit(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter' && newBenefit.trim()) { setBenefits(p => [...p, newBenefit.trim()]); setNewBenefit(""); e.preventDefault(); } }}
               />
+            </Field>
+
+            <Field span="col-span-12 lg:col-span-6" label="Tip Eligibility">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={tipEligible}
+                  onChange={(e) => setTipEligible(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300" 
+                />
+                <span>Position is eligible for tips</span>
+              </label>
             </Field>
             </div>
           </div>
