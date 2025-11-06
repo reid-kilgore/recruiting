@@ -62,9 +62,9 @@ interface JobFormSectionsProps {
   onFinalize: (jobRole: string) => void;
 }
 
-type SectionTab = 'details' | 'compensation' | 'schedule' | 'questions' | 'preview';
+type SectionTab = 'details' | 'questions' | 'preview';
 
-const SECTION_ORDER: SectionTab[] = ['details', 'compensation', 'schedule', 'questions', 'preview'];
+const SECTION_ORDER: SectionTab[] = ['details', 'questions', 'preview'];
 
 export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRanges, selectedLocations, onFinalize }: JobFormSectionsProps) {
   // jobRole is used by parent for identification, not displayed since it's shown in the tab
@@ -84,7 +84,7 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
   };
 
   const isLastSection = activeSection === SECTION_ORDER[SECTION_ORDER.length - 1];
-  const buttonText = isLastSection ? 'Finalize' : 'Next →';
+  const buttonText = isLastSection ? 'Create Campaign' : 'Next →';
   const [skills, setSkills] = useState(["Food Handler", "POS (Square)"]);
   const [newSkill, setNewSkill] = useState("");
   const [benefits, setBenefits] = useState(["Health", "PTO"]);
@@ -132,8 +132,6 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
 
   const sections = [
     { id: 'details' as SectionTab, label: 'Job Details' },
-    { id: 'compensation' as SectionTab, label: 'Compensation & Benefits' },
-    { id: 'schedule' as SectionTab, label: 'Schedule Information' },
     { id: 'questions' as SectionTab, label: 'Application Questions' },
     { id: 'preview' as SectionTab, label: 'Preview' }
   ];
@@ -142,20 +140,32 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
     <div className="space-y-4">
       {/* Section Tabs */}
       <div className="border-b">
-        <div className="flex gap-1">
-          {sections.map(section => (
-            <button
-              key={section.id}
-              onClick={() => setActiveSection(section.id)}
-              className={`px-4 py-2 font-medium text-sm transition-all border-b-2 ${
-                activeSection === section.id
-                  ? 'border-blue-600 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              {section.label}
-            </button>
-          ))}
+        <div className="flex gap-1 items-center justify-between">
+          <div className="flex gap-1">
+            {sections.map(section => (
+              <button
+                key={section.id}
+                onClick={() => setActiveSection(section.id)}
+                className={`px-4 py-2 font-medium text-sm transition-all border-b-2 ${
+                  activeSection === section.id
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                {section.label}
+              </button>
+            ))}
+          </div>
+          <button
+            onClick={goToNextSection}
+            className={`px-6 py-2 rounded-lg font-medium text-sm transition ${
+              isLastSection
+                ? 'bg-green-600 text-white hover:bg-green-700'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
+          >
+            {buttonText}
+          </button>
         </div>
       </div>
 
@@ -179,13 +189,39 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
                 onKeyDown={e => { if (e.key === 'Enter' && newSkill.trim()) { setSkills(p => [...p, newSkill.trim()]); setNewSkill(""); e.preventDefault(); } }}
               />
             </Field>
-            </div>
-          </div>
-        )}
 
-        {activeSection === 'compensation' && (
-          <div className="bg-white border rounded-xl p-5 shadow-sm">
-            <div className="grid grid-cols-12 gap-3">
+            {/* Schedule Information */}
+            <Field label="Schedule Type">
+              <select className="w-full h-9 px-2 rounded border border-gray-300">
+                <option>Full-time</option>
+                <option>Part-time</option>
+                <option>Flexible</option>
+              </select>
+            </Field>
+
+            <Field span="col-span-12" label="Priority Time Ranges">
+              {timeRanges && timeRanges.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {timeRanges.map((range, idx) => (
+                    <div
+                      key={idx}
+                      className="inline-flex flex-col bg-blue-100 text-blue-800 px-3 py-1 rounded text-sm"
+                    >
+                      <span className="font-medium">{range.start} - {range.end}</span>
+                      {range.days && range.days.length > 0 && (
+                        <span className="text-xs text-blue-600">{formatDays(range.days)}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500 italic">
+                  No time ranges selected. Go to the Demand tab to select time slots for this role.
+                </div>
+              )}
+            </Field>
+
+            {/* Compensation & Benefits */}
             <Field span="col-span-12 lg:col-span-6">
               <label className="flex items-center gap-2 text-[13px] text-gray-700 mb-1 cursor-pointer">
                 <input
@@ -246,50 +282,14 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
 
             <Field span="col-span-12 lg:col-span-6" label="Tip Eligibility">
               <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input 
-                  type="checkbox" 
+                <input
+                  type="checkbox"
                   checked={tipEligible}
                   onChange={(e) => setTipEligible(e.target.checked)}
-                  className="w-4 h-4 rounded border-gray-300" 
+                  className="w-4 h-4 rounded border-gray-300"
                 />
                 <span>Position is eligible for tips</span>
               </label>
-            </Field>
-            </div>
-          </div>
-        )}
-
-        {activeSection === 'schedule' && (
-          <div className="bg-white border rounded-xl p-5 shadow-sm">
-            <div className="grid grid-cols-12 gap-3">
-              <Field label="Schedule Type">
-              <select className="w-full h-9 px-2 rounded border border-gray-300">
-                <option>Full-time</option>
-                <option>Part-time</option>
-                <option>Flexible</option>
-              </select>
-            </Field>
-
-            <Field span="col-span-12" label="Priority Time Ranges">
-              {timeRanges && timeRanges.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {timeRanges.map((range, idx) => (
-                    <div
-                      key={idx}
-                      className="inline-flex flex-col bg-blue-100 text-blue-800 px-3 py-1 rounded text-sm"
-                    >
-                      <span className="font-medium">{range.start} - {range.end}</span>
-                      {range.days && range.days.length > 0 && (
-                        <span className="text-xs text-blue-600">{formatDays(range.days)}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-sm text-gray-500 italic">
-                  No time ranges selected. Go to the Demand tab to select time slots for this role.
-                </div>
-              )}
             </Field>
             </div>
           </div>
@@ -363,8 +363,11 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
                 </div>
               ))}
               </div>
-              <div className="col-span-12">
+              <div className="col-span-12 flex gap-3">
                 <button onClick={addQuestion} className="text-sm text-blue-600 hover:underline">+ Add Question</button>
+                <button className="px-4 py-2 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 transition">
+                  Select From Question Bank
+                </button>
               </div>
             </div>
           </div>
@@ -466,23 +469,6 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
             </div>
           </div>
         )}
-      </div>
-
-      {/* Action Buttons */}
-      <div className="flex justify-between items-center pt-4 border-t">
-        <div className="text-sm text-gray-500 italic">
-          Changes are saved automatically
-        </div>
-        <button
-          onClick={goToNextSection}
-          className={`px-6 py-2 rounded-lg font-medium transition ${
-            isLastSection
-              ? 'bg-green-600 text-white hover:bg-green-700'
-              : 'bg-blue-600 text-white hover:bg-blue-700'
-          }`}
-        >
-          {isLastSection ? 'Mark as Complete ✓' : 'Next →'}
-        </button>
       </div>
     </div>
   );

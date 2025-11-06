@@ -5,7 +5,7 @@ import AdvertisementManager from './components/Advertisement/AdvertisementManage
 import CompanyProfile from './components/CompanyProfile/CompanyProfile';
 import JobPostingPreview from './components/Preview/JobPostingPreview';
 
-type Tab = 'demand' | 'profile' | 'advertisement' | 'campaign' | 'review';
+type Tab = 'demand' | 'advertisement' | 'campaign' | 'review' | 'profile';
 
 interface TimeRange {
   start: string; // e.g., "08:00"
@@ -42,6 +42,7 @@ export default function PasscomRecruitingApp() {
   const [jobForms, setJobForms] = useState<JobFormData[]>([]);
   // Store finalized job postings in memory for later use
   const [finalizedJobs, setFinalizedJobs] = useState<FinalizedJob[]>([]);
+  const [openNewCampaignModal, setOpenNewCampaignModal] = useState(false);
 
   // Log finalized jobs when they change (for debugging)
   useEffect(() => {
@@ -85,16 +86,19 @@ export default function PasscomRecruitingApp() {
     };
 
     setFinalizedJobs(prev => [...prev, finalizedJob]);
-    console.log('Finalized job posting:', finalizedJob);
-    alert(`Job posting for ${jobRole} has been finalized and saved!`);
+    console.log('Advertisement created:', finalizedJob);
+
+    // Navigate to campaign tab and open modal
+    setActiveTab('campaign');
+    setOpenNewCampaignModal(true);
   };
 
   const tabs: { id: Tab; label: string }[] = [
     { id: 'demand', label: 'Demand' },
-    { id: 'profile', label: 'Company Profile' },
     { id: 'advertisement', label: 'Advertisement' },
     { id: 'campaign', label: 'Campaign' },
-    { id: 'review', label: 'Review' }
+    { id: 'review', label: 'Interviewing' },
+    { id: 'profile', label: 'Company Profile' }
   ];
 
   return (
@@ -165,6 +169,7 @@ export default function PasscomRecruitingApp() {
               setSelectedLocations={setSelectedLocations}
               jobForms={jobForms}
               setJobForms={setJobForms}
+              onStartHiring={() => setActiveTab('advertisement')}
             />
           </div>
         )}
@@ -194,6 +199,9 @@ export default function PasscomRecruitingApp() {
               setSelectedLocations={setSelectedLocations}
               selectedJobs={selectedJobs}
               setSelectedJobs={setSelectedJobs}
+              advertisements={finalizedJobs}
+              openNewCampaignModal={openNewCampaignModal}
+              setOpenNewCampaignModal={setOpenNewCampaignModal}
             />
           </div>
         )}
@@ -201,7 +209,7 @@ export default function PasscomRecruitingApp() {
         {activeTab === 'review' && (
           <div className="h-full flex items-center justify-center">
             <div className="text-center">
-              <h2 className="text-2xl font-semibold text-gray-700 mb-2">Review</h2>
+              <h2 className="text-2xl font-semibold text-gray-700 mb-2">Interviewing</h2>
               <p className="text-gray-500">Coming soon...</p>
             </div>
           </div>

@@ -136,16 +136,17 @@ interface PlanningScreenProps {
   setSelectedLocations: (locations: string[]) => void;
   jobForms: JobFormData[];
   setJobForms: React.Dispatch<React.SetStateAction<JobFormData[]>>;
+  onStartHiring?: () => void;
 }
 
 const CAMPAIGNS: Campaign[] = [
-  { id:'c7', name:'Summer Hiring Blitz', createdAt:'2025-11-01', status: 'active', locations: ['BOS', 'LGA'], jobs: ['Server', 'Host'], startDate: '2025-11-01', endDate: '2025-12-15', endMode: 'date', timeRanges: [{ start: '11:00', end: '14:00' }, { start: '17:00', end: '22:00' }] },
-  { id:'c6', name:'Q4 Expansion', createdAt:'2025-10-25', status: 'suspended', locations: ['DCA'], jobs: ['Cook', 'Server'], startDate: '2025-10-25', endBudget: 5000, endMode: 'budget', timeRanges: [{ start: '08:00', end: '16:00' }] },
-  { id:'c5', name:'Weekend Warriors', createdAt:'2025-10-18', status: 'active', locations: ['BOS'], jobs: ['Bartender', 'Server'], startDate: '2025-10-18', endHires: 15, endMode: 'hires', timeRanges: [{ start: '18:00', end: '23:00' }] },
-  { id:'c4', name:'New Menu Launch', createdAt:'2025-10-15', status: 'active', locations: ['LGA', 'DCA'], jobs: ['Cook'], startDate: '2025-10-15', endDate: '2025-11-30', endMode: 'date', timeRanges: [{ start: '09:00', end: '17:00' }] },
-  { id:'c3', name:'New Location Opening', createdAt:'2025-10-14', status: 'active', locations: ['ORD'], jobs: ['Cook', 'Server', 'Host'], startDate: '2025-10-14', endDate: '2025-12-01', endMode: 'date', timeRanges: [{ start: '10:00', end: '22:00' }] },
-  { id:'c2', name:'Weekend Staffing', createdAt:'2025-09-28', status: 'suspended', locations: ['BOS', 'LGA'], jobs: ['Server'], startDate: '2025-09-28', endBudget: 3000, endMode: 'budget', timeRanges: [{ start: '17:00', end: '23:00' }] },
-  { id:'c1', name:'Holiday Surge', createdAt:'2025-08-31', status: 'active', locations: ['BOS'], jobs: ['Cook', 'Server', 'Bartender'], startDate: '2025-08-31', endDate: '2025-12-25', endMode: 'date', timeRanges: [{ start: '11:00', end: '15:00' }, { start: '17:00', end: '21:00' }] },
+  { id:'c7', name:'Summer Hiring Blitz', createdAt:'2025-11-01', status: 'active', locations: ['BOS', 'LGA'], jobs: ['Server', 'Host'], startDate: '2025-11-01', endDate: '2025-12-15', endMode: 'date', timeRanges: [{ start: '11:00', end: '14:00', days: [4, 5, 6] }, { start: '17:00', end: '22:00', days: [4, 5, 6] }] },
+  { id:'c6', name:'Q4 Expansion', createdAt:'2025-10-25', status: 'suspended', locations: ['DCA'], jobs: ['Cook', 'Server'], startDate: '2025-10-25', endBudget: 5000, endMode: 'budget', timeRanges: [{ start: '10:00', end: '16:00', days: [0, 1, 2, 3, 4] }] },
+  { id:'c5', name:'Weekend Warriors', createdAt:'2025-10-18', status: 'active', locations: ['BOS'], jobs: ['Bartender', 'Server'], startDate: '2025-10-18', endHires: 15, endMode: 'hires', timeRanges: [{ start: '18:00', end: '23:00', days: [5, 6] }] },
+  { id:'c4', name:'New Menu Launch', createdAt:'2025-10-15', status: 'active', locations: ['LGA', 'DCA'], jobs: ['Cook'], startDate: '2025-10-15', endDate: '2025-11-30', endMode: 'date', timeRanges: [{ start: '11:00', end: '15:00', days: [0, 1, 2] }] },
+  { id:'c3', name:'New Location Opening', createdAt:'2025-10-14', status: 'active', locations: ['ORD'], jobs: ['Cook', 'Server', 'Host'], startDate: '2025-10-14', endDate: '2025-12-01', endMode: 'date', timeRanges: [{ start: '10:00', end: '15:00', days: [0, 1, 2] }, { start: '17:00', end: '21:00', days: [4, 5, 6] }] },
+  { id:'c2', name:'Weekend Staffing', createdAt:'2025-09-28', status: 'suspended', locations: ['BOS', 'LGA'], jobs: ['Server'], startDate: '2025-09-28', endBudget: 3000, endMode: 'budget', timeRanges: [{ start: '17:00', end: '23:00', days: [5, 6] }] },
+  { id:'c1', name:'Holiday Surge', createdAt:'2025-08-31', status: 'active', locations: ['BOS'], jobs: ['Cook', 'Server', 'Bartender'], startDate: '2025-08-31', endDate: '2025-12-25', endMode: 'date', timeRanges: [{ start: '11:00', end: '21:00', days: [6] }] },
 ];
 
 function formatDate(dateStr: string): string {
@@ -153,7 +154,7 @@ function formatDate(dateStr: string): string {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export default function PlanningScreen({ selectedJobs, setSelectedJobs, selectedLocations, setSelectedLocations, jobForms, setJobForms }: PlanningScreenProps) {
+export default function PlanningScreen({ selectedJobs, setSelectedJobs, selectedLocations, setSelectedLocations, jobForms, setJobForms, onStartHiring }: PlanningScreenProps) {
   const availableLocations = ['BOS', 'LGA', 'DCA', 'ORD']
   const roles = [
     { role: "Cook", demand: 10, supply: 7 },
@@ -395,6 +396,21 @@ export default function PlanningScreen({ selectedJobs, setSelectedJobs, selected
           <>
             {/* Left Panel: Roles list and Campaigns */}
             <div className="w-1/4 overflow-y-auto p-4 space-y-3">
+              {/* Start Hiring Button - always visible, disabled until time ranges exist */}
+              {onStartHiring && (
+                <button
+                  onClick={onStartHiring}
+                  disabled={!jobForms.some(job => job.timeRanges && job.timeRanges.length > 0)}
+                  className={`w-full px-4 py-2 rounded-lg text-sm font-semibold transition ${
+                    jobForms.some(job => job.timeRanges && job.timeRanges.length > 0)
+                      ? 'bg-green-600 text-white hover:bg-green-700 cursor-pointer'
+                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  Start Hiring
+                </button>
+              )}
+
               {/* Location Selector */}
               <div className="mb-3">
                 <div className="relative" ref={locationDropdownRef}>
@@ -436,11 +452,15 @@ export default function PlanningScreen({ selectedJobs, setSelectedJobs, selected
               {roles.map((r) => {
                 const gap = r.demand - r.supply
                 const pct = Math.max(0, Math.min(100, (r.supply / Math.max(1, r.demand)) * 100))
-                const isSelected = selectedJobs.includes(r.role)
+                const isSelected = selectedRole === r.role
                 return (
                   <div
                     key={r.role}
-                    onClick={() => setSelectedRole(r.role)}
+                    onClick={() => {
+                      setSelectedRole(r.role)
+                      // Single select - clear all and add just this one
+                      setSelectedJobs([r.role])
+                    }}
                     className={`border rounded p-3 cursor-pointer hover:shadow transition ${
                       selectedRole === r.role ? 'ring-2 ring-blue-500' : ''
                     } ${
@@ -456,19 +476,6 @@ export default function PlanningScreen({ selectedJobs, setSelectedJobs, selected
                         <div className="text-sm font-semibold text-gray-700 min-w-[52px] text-right">
                           {gap > 0 ? `+${gap}` : 'OK'}
                         </div>
-                        <button 
-                          className={`border rounded px-2 py-0.5 text-xs transition ${
-                            isSelected 
-                              ? 'bg-blue-600 text-white border-blue-600' 
-                              : 'bg-white text-gray-700 hover:bg-gray-50'
-                          }`}
-                          onClick={(e) => { 
-                            e.stopPropagation(); 
-                            toggleJobSelection(r.role);
-                          }}
-                        >
-                          Recruit
-                        </button>
                       </div>
                     </div>
                     <div className="mt-2 h-2 w-full bg-gray-200 rounded">
@@ -482,7 +489,9 @@ export default function PlanningScreen({ selectedJobs, setSelectedJobs, selected
               <div className="mt-6 pt-4 border-t">
                 <h3 className="text-sm font-semibold text-gray-700 mb-3">Active Campaigns</h3>
                 <div className="space-y-2">
-                  {campaigns.map((campaign) => {
+                  {campaigns
+                    .filter(campaign => !selectedRole || campaign.jobs.includes(selectedRole))
+                    .map((campaign) => {
                     let rightText = '';
                     if (campaign.endMode === 'date' && campaign.endDate) {
                       rightText = `${formatDate(campaign.startDate)} - ${formatDate(campaign.endDate)}`;
@@ -521,6 +530,11 @@ export default function PlanningScreen({ selectedJobs, setSelectedJobs, selected
                       </div>
                     );
                   })}
+                  {selectedRole && campaigns.filter(campaign => campaign.jobs.includes(selectedRole)).length === 0 && (
+                    <div className="text-xs text-gray-500 italic py-2">
+                      No campaigns for {selectedRole}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -580,6 +594,7 @@ export default function PlanningScreen({ selectedJobs, setSelectedJobs, selected
                     weekMatrix={weekMatrix}
                     selectedSlots={selectedSlots}
                     selectedCampaign={selectedCampaign}
+                    filteredCampaigns={campaigns.filter(campaign => campaign.status === 'active' && (!selectedRole || campaign.jobs.includes(selectedRole)))}
                     onCellMouseDown={handleCellMouseDown}
                     onCellMouseEnter={handleCellMouseEnter}
                   />
@@ -625,29 +640,54 @@ function WeekGrid({
   weekMatrix,
   selectedSlots,
   selectedCampaign,
+  filteredCampaigns,
   onCellMouseDown,
   onCellMouseEnter
 }: {
   weekMatrix: { demand: number; supply: number; closed: boolean }[][]
   selectedSlots: Set<string>
   selectedCampaign: Campaign | null
+  filteredCampaigns: Campaign[]
   onCellMouseDown: (day: number, slotIndex: number) => void
   onCellMouseEnter: (day: number, slotIndex: number) => void
 }) {
-  // Convert campaign time ranges to slot set
-  const campaignSlots = new Set<number>()
+  // Convert campaign time ranges to slot set (with day information)
+  const campaignSlots = new Set<string>()
   if (selectedCampaign?.timeRanges) {
     selectedCampaign.timeRanges.forEach(range => {
       const [startHour, startMin] = range.start.split(':').map(Number)
       const [endHour, endMin] = range.end.split(':').map(Number)
       const startSlot = startHour * 2 + (startMin === 30 ? 1 : 0)
       const endSlot = endHour * 2 + (endMin === 30 ? 1 : 0)
+      const days = range.days || [0, 1, 2, 3, 4, 5, 6] // Default to all days if not specified
 
-      for (let i = startSlot; i < endSlot; i++) {
-        campaignSlots.add(i)
-      }
+      days.forEach(day => {
+        for (let i = startSlot; i < endSlot; i++) {
+          campaignSlots.add(`${day}-${i}`)
+        }
+      })
     })
   }
+
+  // Convert filtered campaigns' time ranges to slot set (for general highlighting)
+  const filteredCampaignSlots = new Set<string>()
+  filteredCampaigns.forEach(campaign => {
+    if (campaign.timeRanges) {
+      campaign.timeRanges.forEach(range => {
+        const [startHour, startMin] = range.start.split(':').map(Number)
+        const [endHour, endMin] = range.end.split(':').map(Number)
+        const startSlot = startHour * 2 + (startMin === 30 ? 1 : 0)
+        const endSlot = endHour * 2 + (endMin === 30 ? 1 : 0)
+        const days = range.days || [0, 1, 2, 3, 4, 5, 6] // Default to all days if not specified
+
+        days.forEach(day => {
+          for (let i = startSlot; i < endSlot; i++) {
+            filteredCampaignSlots.add(`${day}-${i}`)
+          }
+        })
+      })
+    }
+  })
   return (
     <div className="min-w-[720px]">
       {/* Column headers with 2px gaps between day columns */}
@@ -665,7 +705,6 @@ function WeekGrid({
           const isFullHour = slotIndex % 2 === 0
           const showLabel = isFullHour && (hour % 2 === 0) // label every 2 hours
           const hourLabel = `${hour.toString().padStart(2,'0')}:00`
-          const isCampaignSlot = campaignSlots.has(slotIndex)
 
           return (
             <div key={slot.time}>
@@ -683,6 +722,8 @@ function WeekGrid({
                   const bg = closed ? COLORS.closed : cellColor(demand, supply)
                   const cellKey = `${dayIdx}-${slotIndex}`
                   const isSelected = selectedSlots.has(cellKey)
+                  const isCampaignSlot = campaignSlots.has(cellKey)
+                  const isFilteredCampaignSlot = filteredCampaignSlots.has(cellKey)
 
                   return (
                     <div
@@ -693,7 +734,7 @@ function WeekGrid({
                       onMouseEnter={() => onCellMouseEnter(dayIdx, slotIndex)}
                       style={{
                         height: '10px',
-                        background: isCampaignSlot ? '#a78bfa' : bg,
+                        background: isCampaignSlot ? '#a78bfa' : isFilteredCampaignSlot ? '#86efac' : bg,
                         outline: isSelected ? '2px solid #3b82f6' : 'none',
                         outlineOffset: '-2px'
                       }}

@@ -41,6 +41,7 @@ const formatDate = (dateStr: string): string => {
 interface TimeRange {
   start: string;
   end: string;
+  days?: number[]; // Array of day indices (0=Mon, 1=Tue, etc.)
 }
 
 interface Source {
@@ -92,14 +93,27 @@ const applicantsPerDay = (s: Source) => {
   return s.dailyCap > 0 ? Math.min(est, s.dailyCap) : est;
 };
 
+interface Advertisement {
+  id: string;
+  role: string;
+  locations: string[];
+  timeRanges: TimeRange[];
+  formData: any;
+  companyData: any;
+  finalizedAt: string;
+}
+
 interface CampaignManagerProps {
   selectedLocations: string[];
   setSelectedLocations: (locations: string[]) => void;
   selectedJobs: string[];
   setSelectedJobs: (jobs: string[]) => void;
+  advertisements: Advertisement[];
+  openNewCampaignModal: boolean;
+  setOpenNewCampaignModal: (open: boolean) => void;
 }
 
-export default function CampaignManager({ selectedLocations, setSelectedLocations, selectedJobs, setSelectedJobs }: CampaignManagerProps){
+export default function CampaignManager({ selectedLocations, setSelectedLocations, selectedJobs, setSelectedJobs, advertisements, openNewCampaignModal, setOpenNewCampaignModal }: CampaignManagerProps){
   const [campaigns, setCampaigns] = useState(
     [...CAMPAIGNS].sort((a,b)=> new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   );
@@ -171,11 +185,288 @@ export default function CampaignManager({ selectedLocations, setSelectedLocation
             onSelectCampaign={handleSelectCampaign}
             selectedLocations={selectedLocations}
             selectedJobs={selectedJobs}
+            advertisements={advertisements}
+            showNewCampaignModal={openNewCampaignModal}
+            setShowNewCampaignModal={setOpenNewCampaignModal}
           />
         </div>
 
         {/* RIGHT: Sources + Chart */}
         <div className="col-span-12 md:col-span-7 lg:col-span-8 space-y-4">
+          {/* Campaign Target */}
+          {current && (
+            <div className="bg-white border rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-sm font-semibold">Campaign Target</div>
+                <div className="flex items-center gap-2">
+                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                    current.status === 'active' ? 'bg-green-100 text-green-700' :
+                    current.status === 'suspended' ? 'bg-gray-100 text-gray-600' :
+                    'bg-blue-100 text-blue-700'
+                  }`}>
+                    {current.status.toUpperCase()}
+                  </span>
+                </div>
+              </div>
+
+              {/* Campaign Info */}
+              <div className="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-gray-500">Campaign:</span>
+                    <span className="ml-1 font-medium">{current.name}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Start:</span>
+                    <span className="ml-1 font-medium">{formatDate(current.startDate)}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">End Goal:</span>
+                    <span className="ml-1 font-medium">
+                      {current.endMode === 'date' && current.endDate && formatDate(current.endDate)}
+                      {current.endMode === 'budget' && `$${current.endBudget?.toLocaleString()}`}
+                      {current.endMode === 'hires' && `${current.endHires} hires`}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Daily Budget:</span>
+                    <span className="ml-1 font-medium">
+                      ${sum((current.sources || []).filter(s => s.enabled).map(s => s.dailyBudget)).toFixed(0)}
+                    </span>
+                  </div>
+                  <div className="col-span-2">
+                    <span className="text-gray-500">Active Sources:</span>
+                    <span className="ml-1 font-medium">
+                      {(current.sources || []).filter(s => s.enabled).map(s => s.key).join(', ') || 'None'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {current.jobs.map((jobRole) => {
+                  const ad = advertisements.find(a => a.role === jobRole);
+                  const enabledSources = (current.sources || []).filter(s => s.enabled);
+                  const dailyApps = sum(enabledSources.map(s => applicantsPerDay(s)));
+
+                  return (
+                    <div key={jobRole} className="border rounded-lg p-3 bg-white">
+                      {/* Header */}
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-semibold text-gray-900">{jobRole}</h3>
+                            {ad && (
+                              <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-medium">
+                                AD
+                              </span>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-600 mt-0.5">
+                            {current.locations.join(', ')}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-sm font-bold text-blue-600">{Math.round(dailyApps)}</div>
+                          <div className="text-[10px] text-gray-500">apps/day</div>
+                        </div>
+                      </div>
+
+                      {/* Company Info from Ad */}
+                      {ad?.companyData && (
+                        <div className="mb-2 pb-2 border-b border-gray-100">
+                          <div className="text-xs text-gray-600 line-clamp-2">{ad.companyData.description}</div>
+                          {ad.companyData.culture && ad.companyData.culture.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {ad.companyData.culture.map((c: string, idx: number) => (
+                                <span key={idx} className="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px]">
+                                  {c}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Time Ranges */}
+                      {current.timeRanges && current.timeRanges.length > 0 && (
+                        <div className="mb-2">
+                          <div className="text-[10px] text-gray-500 mb-1">Priority Time Ranges:</div>
+                          <div className="flex flex-wrap gap-1">
+                            {current.timeRanges.map((range, idx) => {
+                              const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+                              const daysStr = range.days && range.days.length > 0 && range.days.length < 7
+                                ? range.days.map(d => DAYS[d]).join(',')
+                                : 'All';
+                              return (
+                                <span key={idx} className="px-1.5 py-0.5 bg-purple-50 text-purple-700 rounded text-[10px] font-mono">
+                                  {range.start}-{range.end} ({daysStr})
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Ad metadata */}
+                      {ad && (
+                        <div className="text-[10px] text-gray-400">
+                          Ad created {new Date(ad.finalizedAt).toLocaleDateString()}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Campaign Details Controls */}
+          {current && (
+            <div className="bg-white border rounded-xl p-4">
+              <div className="text-sm font-semibold mb-3">Campaign Details</div>
+
+              {/* Row 1: Name and Start Date */}
+              <div className="grid grid-cols-12 gap-3 mb-3">
+                <div className="col-span-7">
+                  <Field label="Campaign Name" active={true}>
+                    <input
+                      value={current.name}
+                      onChange={e => {
+                        const newName = e.target.value;
+                        setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, name: newName } : c));
+                      }}
+                      className={inputBase}
+                    />
+                  </Field>
+                </div>
+                <div className="col-span-5">
+                  <Field label="Start Date" active={true}>
+                    <input
+                      type="date"
+                      value={current.startDate}
+                      onChange={e => {
+                        const newDate = e.target.value;
+                        setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, startDate: newDate } : c));
+                      }}
+                      className={inputBase}
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              {/* Row 2: End Criteria */}
+              <div className="mb-3">
+                <div className="text-xs text-gray-600 mb-2">Campaign End Criteria</div>
+                <div className="flex items-center gap-2">
+                  {/* Budget */}
+                  <input
+                    aria-label="Budget radio"
+                    type="radio"
+                    name="endMode"
+                    checked={current.endMode === 'budget'}
+                    onChange={() => setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, endMode: 'budget' } : c))}
+                    className={current.endMode === 'budget' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
+                  />
+                  <div className={`flex-1 ${current.endMode === 'budget' ? '' : 'opacity-60'}`}>
+                    <Field label="Budget" active={current.endMode === 'budget'}>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={current.endBudget || 1000}
+                        onChange={e => {
+                          const val = Math.max(0, Math.floor(Number(e.target.value || 0)));
+                          setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, endBudget: val } : c));
+                        }}
+                        disabled={current.endMode !== 'budget'}
+                        className={inputBase}
+                      />
+                    </Field>
+                  </div>
+
+                  {/* Hires */}
+                  <input
+                    aria-label="Hires radio"
+                    type="radio"
+                    name="endMode"
+                    checked={current.endMode === 'hires'}
+                    onChange={() => setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, endMode: 'hires' } : c))}
+                    className={current.endMode === 'hires' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
+                  />
+                  <div className={`flex-1 ${current.endMode === 'hires' ? '' : 'opacity-60'}`}>
+                    <Field label="Hires" active={current.endMode === 'hires'}>
+                      <input
+                        type="number"
+                        min={0}
+                        step={1}
+                        value={current.endHires || 10}
+                        onChange={e => {
+                          const val = Math.max(0, Math.floor(Number(e.target.value || 0)));
+                          setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, endHires: val } : c));
+                        }}
+                        disabled={current.endMode !== 'hires'}
+                        className={inputBase}
+                      />
+                    </Field>
+                  </div>
+
+                  {/* End Date */}
+                  <input
+                    aria-label="End date radio"
+                    type="radio"
+                    name="endMode"
+                    checked={current.endMode === 'date'}
+                    onChange={() => setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, endMode: 'date' } : c))}
+                    className={current.endMode === 'date' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
+                  />
+                  <div className={`flex-1 ${current.endMode === 'date' ? '' : 'opacity-60'}`}>
+                    <Field label="End Date" active={current.endMode === 'date'}>
+                      <input
+                        type="date"
+                        value={current.endDate || ''}
+                        onChange={e => {
+                          const newDate = e.target.value;
+                          setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, endDate: newDate } : c));
+                        }}
+                        disabled={current.endMode !== 'date'}
+                        className={inputBase}
+                      />
+                    </Field>
+                  </div>
+                </div>
+              </div>
+
+              {/* Row 3: Status Control Buttons */}
+              <div className="flex gap-2">
+                {current.status !== 'active' && (
+                  <button
+                    onClick={() => setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, status: 'active' } : c))}
+                    className="px-4 py-2 rounded-lg font-medium text-sm transition bg-green-600 hover:bg-green-700 text-white"
+                  >
+                    Launch Campaign
+                  </button>
+                )}
+                {current.status === 'active' && (
+                  <button
+                    onClick={() => setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, status: 'suspended' } : c))}
+                    className="px-4 py-2 rounded-lg font-medium text-sm transition bg-orange-600 hover:bg-orange-700 text-white"
+                  >
+                    Suspend Campaign
+                  </button>
+                )}
+                <div className="flex-1"></div>
+                <span className={`px-3 py-2 rounded-lg text-sm font-medium ${
+                  current.status === 'active' ? 'bg-green-100 text-green-700' :
+                  current.status === 'suspended' ? 'bg-gray-100 text-gray-600' :
+                  'bg-blue-100 text-blue-700'
+                }`}>
+                  {current.status.toUpperCase()}
+                </span>
+              </div>
+            </div>
+          )}
+
           <div className="bg-white border rounded-xl p-4">
             <div className="text-sm font-semibold mb-2">Sources & Daily Budgets</div>
             <div className="grid grid-cols-12 text-xs font-semibold text-gray-600 border-b pb-1">
@@ -233,6 +524,17 @@ export default function CampaignManager({ selectedLocations, setSelectedLocation
 // ===============================
 // CampaignsWindow – flattened fields, robust date defaults
 // ===============================
+
+// Field component defined outside to prevent re-renders and focus issues
+const Field = ({label, children, active = false}: {label: string; children: React.ReactNode; active?: boolean})=> (
+  <div className={`relative border rounded-md px-2 pt-2 pb-1 bg-white min-h-[38px] ${active ? 'border-gray-600' : 'border-gray-400'}`}>
+    <div className="absolute left-2 -top-2 bg-white px-1 text-[11px] text-gray-500">{label}</div>
+    {children}
+  </div>
+);
+
+const inputBase = "w-full bg-transparent outline-none text-sm py-1";
+
 interface CampaignsWindowProps {
   campaigns: Campaign[];
   activeId: string;
@@ -243,6 +545,9 @@ interface CampaignsWindowProps {
   onSelectCampaign: (campaign: Campaign) => void;
   selectedLocations: string[];
   selectedJobs: string[];
+  advertisements: Advertisement[];
+  showNewCampaignModal: boolean;
+  setShowNewCampaignModal: (show: boolean) => void;
 }
 
 function CampaignsWindow(props: CampaignsWindowProps){
@@ -256,6 +561,9 @@ function CampaignsWindow(props: CampaignsWindowProps){
     onSelectCampaign,
     selectedLocations,
     selectedJobs,
+    advertisements = [],
+    showNewCampaignModal,
+    setShowNewCampaignModal,
   } = props || {};
 
   const today = new Date();
@@ -288,14 +596,6 @@ function CampaignsWindow(props: CampaignsWindowProps){
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId]); // Only re-run when campaign selection changes, not on every campaigns array update
-
-  const Field = ({label, children, active = false}: {label: string; children: React.ReactNode; active?: boolean})=> (
-    <div className={`relative border rounded-md px-2 pt-2 pb-1 bg-white min-h-[38px] ${active ? 'border-gray-600' : 'border-gray-400'}`}>
-      <div className="absolute left-2 -top-2 bg-white px-1 text-[11px] text-gray-500">{label}</div>
-      {children}
-    </div>
-  );
-  const inputBase = "w-full bg-transparent outline-none text-sm py-1";
 
   const saveStart = (v: string)=>{ setStart(v); setDateRange((r)=>({...(r||{}), start:v})); };
   const saveEnd   = (v: string)=>{ setEndDate(v); setEndMode('date'); setDateRange((r)=>({...(r||{}), end:v})); };
@@ -392,136 +692,22 @@ function CampaignsWindow(props: CampaignsWindowProps){
 
   return (
     <div className="bg-white border rounded-xl p-3">
-      {/* Row 1 */}
-      <div className="flex gap-2 mb-2">
-        <div className="flex-1">
-          <Field label="Campaign" active={true}>
-            <input value={name} onChange={e=>setName(e.target.value)} placeholder="Name" className={inputBase}/>
-          </Field>
-        </div>
-        <div className="w-[33%]">
-          <Field label="Start Date" active={true}>
-            <input type="date" value={start} onChange={e=>saveStart(e.target.value)} className={inputBase} />
-          </Field>
-        </div>
-      </div>
-
-      {/* Campaign End Criteria */}
-      <div className="text-xs text-gray-600 mb-2">Campaign End Criteria</div>
-      <div className="flex items-center gap-[5px] mb-3">
-        {/* Budget */}
-        <input 
-          aria-label="Budget radio" 
-          type="radio" 
-          name="end" 
-          checked={endMode==='budget'} 
-          onChange={()=>setEndMode('budget')} 
-          className={endMode==='budget' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'} 
-        />
-        <div className={`flex-1 ${endMode==='budget' ? '' : 'opacity-60'}`}>
-          <Field label="Budget" active={endMode==='budget'}>
-            <input 
-              type="number" 
-              min={0} 
-              step={1} 
-              value={endBudget}
-              onChange={e=>setEndBudget(Math.max(0, Math.floor(Number(e.target.value||0))))}
-              className={inputBase}
-            />
-          </Field>
-        </div>
-        
-        {/* Hires */}
-        <input 
-          aria-label="Hires radio" 
-          type="radio" 
-          name="end" 
-          checked={endMode==='hires'} 
-          onChange={()=>setEndMode('hires')} 
-          className={endMode==='hires' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'} 
-        />
-        <div className={`flex-1 ${endMode==='hires' ? '' : 'opacity-60'}`}>
-          <Field label="Hires" active={endMode==='hires'}>
-            <input 
-              type="number" 
-              min={0} 
-              step={1} 
-              value={endHires}
-              onChange={e=>setEndHires(Math.max(0, Math.floor(Number(e.target.value||0))))}
-              className={inputBase}
-            />
-          </Field>
-        </div>
-        
-        {/* End Date */}
-        <input 
-          aria-label="End date radio" 
-          type="radio" 
-          name="end" 
-          checked={endMode==='date'} 
-          onChange={()=>setEndMode('date')} 
-          className={endMode==='date' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'} 
-        />
-        <div className={`flex-1 ${endMode==='date' ? '' : 'opacity-60'}`}>
-          <Field label="End Date" active={endMode==='date'}>
-            <input type="date" value={endDate} onChange={e=>saveEnd(e.target.value)} className={inputBase} />
-          </Field>
-        </div>
-      </div>
-
-      {/* Campaign Action Buttons */}
-      <div className="mb-3 space-y-2">
-        {/* Primary Actions */}
-        <div className="flex gap-2">
-          {campaignStatus !== 'active' && (
-            <button
-              onClick={handleLaunchSuspend}
-              className="flex-1 px-3 py-2 rounded-lg font-medium text-sm transition bg-green-600 hover:bg-green-700 text-white"
-            >
-              Launch
-            </button>
-          )}
-          {campaignStatus === 'active' && (
-            <button
-              onClick={handleLaunchSuspend}
-              className="flex-1 px-3 py-2 rounded-lg font-medium text-sm transition bg-orange-600 hover:bg-orange-700 text-white"
-            >
-              Suspend
-            </button>
-          )}
-          <button
-            onClick={handleSave}
-            className="flex-1 px-3 py-2 rounded-lg font-medium text-sm transition bg-blue-600 hover:bg-blue-700 text-white"
-          >
-            Save
-          </button>
-        </div>
-        
-        {/* Secondary Actions */}
-        <div className="flex gap-2">
-          <button
-            onClick={handleCopy}
-            className="flex-1 px-3 py-2 rounded-lg font-medium text-sm transition bg-gray-600 hover:bg-gray-700 text-white"
-          >
-            Copy
-          </button>
-          <button
-            onClick={handleDelete}
-            className="flex-1 px-3 py-2 rounded-lg font-medium text-sm transition bg-red-600 hover:bg-red-700 text-white"
-          >
-            Delete
-          </button>
-        </div>
-      </div>
+      {/* New Campaign Button */}
+      <button
+        onClick={() => setShowNewCampaignModal(true)}
+        className="w-full mb-3 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
+      >
+        + New Campaign
+      </button>
 
       {/* Scrollable Campaign List */}
-      <div className="border rounded-lg h-64 overflow-y-scroll pr-2">
+      <div className="border rounded-lg h-[calc(100vh-200px)] overflow-y-scroll pr-2">
         <div className="divide-y">
           {previewRows.map(row=> {
             const campaign = campaigns.find(c => c.id === row.id);
             return (
-              <button 
-                key={row.id} 
+              <button
+                key={row.id}
                 onClick={()=> {
                   if (campaign) {
                     onSelectCampaign(campaign);
@@ -560,6 +746,288 @@ function CampaignsWindow(props: CampaignsWindowProps){
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* New Campaign Modal */}
+      {showNewCampaignModal && (
+        <NewCampaignModal
+          advertisements={advertisements}
+          campaigns={campaigns}
+          onClose={() => setShowNewCampaignModal(false)}
+          onCreateCampaign={(newCampaign) => {
+            setCampaigns(prev => [newCampaign, ...prev]);
+            setActiveId(newCampaign.id);
+            setShowNewCampaignModal(false);
+          }}
+          selectedLocations={selectedLocations}
+          selectedJobs={selectedJobs}
+        />
+      )}
+    </div>
+  );
+}
+
+// ===============================
+// NewCampaignModal – Modal for creating campaigns from advertisements
+// ===============================
+interface NewCampaignModalProps {
+  advertisements: Advertisement[];
+  campaigns: Campaign[];
+  onClose: () => void;
+  onCreateCampaign: (campaign: Campaign) => void;
+  selectedLocations: string[];
+  selectedJobs: string[];
+}
+
+function NewCampaignModal({ advertisements, campaigns, onClose, onCreateCampaign, selectedLocations, selectedJobs }: NewCampaignModalProps) {
+  const [selectedAdId, setSelectedAdId] = useState<string>('');
+  const [name, setName] = useState('');
+  const [startDate, setStartDate] = useState(isoDate(new Date()));
+  const [endMode, setEndMode] = useState<'budget' | 'hires' | 'date'>('date');
+  const [endBudget, setEndBudget] = useState(1000);
+  const [endHires, setEndHires] = useState(10);
+  const tmpEnd = new Date(); tmpEnd.setDate(tmpEnd.getDate()+30);
+  const [endDate, setEndDate] = useState(isoDate(tmpEnd));
+
+  const selectedAd = advertisements.find(ad => ad.id === selectedAdId);
+
+  const handleCopyFromCampaign = (campaignId: string) => {
+    if (!campaignId) return;
+
+    const campaign = campaigns.find(c => c.id === campaignId);
+    if (!campaign) return;
+
+    // Populate all fields from the selected campaign
+    setName(`${campaign.name} (Copy)`);
+    setStartDate(campaign.startDate);
+    setEndMode(campaign.endMode);
+    setEndBudget(campaign.endBudget || 1000);
+    setEndHires(campaign.endHires || 10);
+    setEndDate(campaign.endDate || isoDate(tmpEnd));
+
+    // If the campaign has jobs, find and select the corresponding advertisement
+    if (campaign.jobs && campaign.jobs.length > 0) {
+      const ad = advertisements.find(a => a.role === campaign.jobs[0]);
+      if (ad) {
+        setSelectedAdId(ad.id);
+      }
+    }
+  };
+
+  const handleCreate = () => {
+    if (!selectedAd || !name.trim()) {
+      alert('Please select an advertisement and enter a campaign name');
+      return;
+    }
+
+    const newCampaign: Campaign = {
+      id: `c${Date.now()}`,
+      name: name.trim(),
+      createdAt: new Date().toISOString().slice(0, 10),
+      sources: DEFAULT_SOURCES,
+      status: 'draft',
+      locations: selectedAd.locations,
+      jobs: [selectedAd.role],
+      startDate: startDate,
+      endDate: endMode === 'date' ? endDate : undefined,
+      endBudget: endMode === 'budget' ? endBudget : undefined,
+      endHires: endMode === 'hires' ? endHires : undefined,
+      endMode: endMode,
+      timeRanges: selectedAd.timeRanges,
+    };
+
+    onCreateCampaign(newCampaign);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-bold">Create New Campaign</h2>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+            >
+              ×
+            </button>
+          </div>
+
+          {/* Copy from Previous Campaign */}
+          {campaigns.length > 0 && (
+            <div className="mb-4 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Copy from Previous Campaign (Optional)
+              </label>
+              <select
+                onChange={(e) => handleCopyFromCampaign(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                defaultValue=""
+              >
+                <option value="">-- Select a campaign to copy --</option>
+                {campaigns.map(campaign => (
+                  <option key={campaign.id} value={campaign.id}>
+                    {campaign.name} ({campaign.status})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Advertisement Selection */}
+          <div className="mb-4">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Select Advertisement
+            </label>
+            {advertisements.length === 0 ? (
+              <div className="p-4 border rounded-lg text-center text-gray-500">
+                No advertisements created yet. Create an advertisement first.
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-2">
+                {advertisements.map(ad => (
+                  <button
+                    key={ad.id}
+                    onClick={() => {
+                      setSelectedAdId(ad.id);
+                      setName(`${ad.role} Campaign`);
+                    }}
+                    className={`w-full text-left p-3 border rounded-lg transition ${
+                      selectedAdId === ad.id
+                        ? 'border-blue-600 bg-blue-50'
+                        : 'border-gray-300 hover:border-gray-400'
+                    }`}
+                  >
+                    <div className="font-semibold">{ad.role}</div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      {ad.locations.join(', ')} • Created {new Date(ad.finalizedAt).toLocaleDateString()}
+                    </div>
+                    {ad.timeRanges && ad.timeRanges.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {ad.timeRanges.map((range, idx) => (
+                          <span key={idx} className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-mono">
+                            {range.start}-{range.end}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Campaign Name */}
+          <div className="mb-4">
+            <Field label="Campaign Name" active={true}>
+              <input
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="Enter campaign name"
+                className={inputBase}
+              />
+            </Field>
+          </div>
+
+          {/* Start Date */}
+          <div className="mb-4">
+            <Field label="Start Date" active={true}>
+              <input
+                type="date"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                className={inputBase}
+              />
+            </Field>
+          </div>
+
+          {/* End Criteria */}
+          <div className="mb-4">
+            <div className="text-sm font-semibold text-gray-700 mb-2">Campaign End Criteria</div>
+            <div className="flex items-center gap-2 mb-2">
+              {/* Budget */}
+              <input
+                aria-label="Budget radio"
+                type="radio"
+                name="end"
+                checked={endMode==='budget'}
+                onChange={()=>setEndMode('budget')}
+                className={endMode==='budget' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
+              />
+              <div className={`flex-1 ${endMode==='budget' ? '' : 'opacity-60'}`}>
+                <Field label="Budget" active={endMode==='budget'}>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={endBudget}
+                    onChange={e=>setEndBudget(Math.max(0, Math.floor(Number(e.target.value||0))))}
+                    className={inputBase}
+                  />
+                </Field>
+              </div>
+
+              {/* Hires */}
+              <input
+                aria-label="Hires radio"
+                type="radio"
+                name="end"
+                checked={endMode==='hires'}
+                onChange={()=>setEndMode('hires')}
+                className={endMode==='hires' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
+              />
+              <div className={`flex-1 ${endMode==='hires' ? '' : 'opacity-60'}`}>
+                <Field label="Hires" active={endMode==='hires'}>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    value={endHires}
+                    onChange={e=>setEndHires(Math.max(0, Math.floor(Number(e.target.value||0))))}
+                    className={inputBase}
+                  />
+                </Field>
+              </div>
+
+              {/* End Date */}
+              <input
+                aria-label="End date radio"
+                type="radio"
+                name="end"
+                checked={endMode==='date'}
+                onChange={()=>setEndMode('date')}
+                className={endMode==='date' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
+              />
+              <div className={`flex-1 ${endMode==='date' ? '' : 'opacity-60'}`}>
+                <Field label="End Date" active={endMode==='date'}>
+                  <input
+                    type="date"
+                    value={endDate}
+                    onChange={e=>setEndDate(e.target.value)}
+                    className={inputBase}
+                  />
+                </Field>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 mt-6">
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleCreate}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
+              disabled={!selectedAd || !name.trim()}
+            >
+              Create Campaign
+            </button>
+          </div>
         </div>
       </div>
     </div>
