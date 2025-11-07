@@ -873,7 +873,7 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
               </div>
 
               {/* Suggested Priority Time Ranges */}
-              {!heatmapCollapsed && selectedRole && (() => {
+              {selectedRole && (() => {
                 // Find the worst time slots based on heatmap data (RED cells)
                 // Analyze weekMatrix to find cells where supply is significantly below demand
                 const redCells: { day: number; slot: number; severity: number }[] = [];
@@ -1423,8 +1423,11 @@ function WeekGrid({
                 left: `calc(60px + ${rect.day} * (100% - 60px) / 7 + ${rect.day} * 2px)`,
                 width: `calc((100% - 60px) / 7)`,
                 height: `${height}px`,
-                border: '3px solid #009cd9',
-                borderRadius: '3px',
+                border: '4px solid #009cd9',
+                borderRadius: '4px',
+                backgroundColor: 'rgba(0, 156, 217, 0.15)',
+                backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0, 156, 217, 0.1) 4px, rgba(0, 156, 217, 0.1) 8px)',
+                boxShadow: '0 0 8px rgba(0, 156, 217, 0.4)',
                 boxSizing: 'border-box',
                 zIndex: 10
               }}
