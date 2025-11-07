@@ -185,6 +185,8 @@ export default function CampaignManager({ selectedLocations: _selectedLocations,
             setCampaigns={setCampaigns}
             onSelectCampaign={handleSelectCampaign}
             advertisements={advertisements}
+            selectedJobs={_selectedJobs}
+            selectedLocations={_selectedLocations}
             showNewCampaignModal={openNewCampaignModal}
             setShowNewCampaignModal={setOpenNewCampaignModal}
           />
@@ -727,6 +729,8 @@ interface CampaignsWindowProps {
   setCampaigns: React.Dispatch<React.SetStateAction<Campaign[]>>;
   onSelectCampaign: (campaign: Campaign) => void;
   advertisements: Advertisement[];
+  selectedJobs: string[];
+  selectedLocations: string[];
   showNewCampaignModal: boolean;
   setShowNewCampaignModal: (show: boolean) => void;
 }
@@ -739,6 +743,8 @@ function CampaignsWindow(props: CampaignsWindowProps){
     setCampaigns,
     onSelectCampaign,
     advertisements = [],
+    selectedJobs = [],
+    selectedLocations = [],
     showNewCampaignModal,
     setShowNewCampaignModal,
   } = props || {};
@@ -825,6 +831,8 @@ function CampaignsWindow(props: CampaignsWindowProps){
       {showNewCampaignModal && (
         <NewCampaignModal
           advertisements={advertisements}
+          selectedJobs={selectedJobs}
+          selectedLocations={selectedLocations}
           campaigns={campaigns}
           onClose={() => setShowNewCampaignModal(false)}
           onCreateCampaign={(newCampaign) => {
@@ -839,17 +847,19 @@ function CampaignsWindow(props: CampaignsWindowProps){
 }
 
 // ===============================
-// NewCampaignModal – Modal for creating campaigns from advertisements
+// NewCampaignModal – Modal for creating campaigns from job postings
 // ===============================
 interface NewCampaignModalProps {
   advertisements: Advertisement[];
+  selectedJobs: string[];
+  selectedLocations: string[];
   campaigns: Campaign[];
   onClose: () => void;
   onCreateCampaign: (campaign: Campaign) => void;
 }
 
-function NewCampaignModal({ advertisements, campaigns, onClose, onCreateCampaign }: NewCampaignModalProps) {
-  const [selectedAdId, setSelectedAdId] = useState<string>('');
+function NewCampaignModal({ advertisements, selectedJobs, selectedLocations, campaigns, onClose, onCreateCampaign }: NewCampaignModalProps) {
+  const [selectedJobRole, setSelectedJobRole] = useState<string>('');
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState(isoDate(new Date()));
   const [endMode, setEndMode] = useState<'budget' | 'hires' | 'date' | 'staffing'>('date');
@@ -858,7 +868,8 @@ function NewCampaignModal({ advertisements, campaigns, onClose, onCreateCampaign
   const tmpEnd = new Date(); tmpEnd.setDate(tmpEnd.getDate()+30);
   const [endDate, setEndDate] = useState(isoDate(tmpEnd));
 
-  const selectedAd = advertisements.find(ad => ad.id === selectedAdId);
+  // Try to find a finalized ad for the selected job, but also support jobs without ads
+  const selectedAd = advertisements.find(ad => ad.role === selectedJobRole);
 
   const handleCopyFromCampaign = (campaignId: string) => {
     if (!campaignId) return;
@@ -874,18 +885,15 @@ function NewCampaignModal({ advertisements, campaigns, onClose, onCreateCampaign
     setEndHires(campaign.endHires || 10);
     setEndDate(campaign.endDate || isoDate(tmpEnd));
 
-    // If the campaign has jobs, find and select the corresponding advertisement
+    // If the campaign has jobs, select the first job role
     if (campaign.jobs && campaign.jobs.length > 0) {
-      const ad = advertisements.find(a => a.role === campaign.jobs[0]);
-      if (ad) {
-        setSelectedAdId(ad.id);
-      }
+      setSelectedJobRole(campaign.jobs[0]);
     }
   };
 
   const handleCreate = () => {
-    if (!selectedAd || !name.trim()) {
-      alert('Please select an advertisement and enter a campaign name');
+    if (!selectedJobRole || !name.trim()) {
+      alert('Please select a job posting and enter a campaign name');
       return;
     }
 
@@ -895,14 +903,14 @@ function NewCampaignModal({ advertisements, campaigns, onClose, onCreateCampaign
       createdAt: new Date().toISOString().slice(0, 10),
       sources: DEFAULT_SOURCES,
       status: 'draft',
-      locations: selectedAd.locations,
-      jobs: [selectedAd.role],
+      locations: selectedAd?.locations || selectedLocations,
+      jobs: [selectedJobRole],
       startDate: startDate,
       endDate: endMode === 'date' ? endDate : undefined,
       endBudget: endMode === 'budget' ? endBudget : undefined,
       endHires: endMode === 'hires' ? endHires : undefined,
       endMode: endMode,
-      timeRanges: selectedAd.timeRanges,
+      timeRanges: selectedAd?.timeRanges || [],
     };
 
     onCreateCampaign(newCampaign);
@@ -948,40 +956,51 @@ function NewCampaignModal({ advertisements, campaigns, onClose, onCreateCampaign
             <label className="block text-sm font-semibold text-gray-700 mb-2">
               Select Job Posting
             </label>
-            {advertisements.length === 0 ? (
+            {selectedJobs.length === 0 ? (
               <div className="p-4 border rounded-lg text-center text-gray-500">
-                No job postings created yet. Create a job posting first.
+                No job postings set up yet. Go to Job Posting tab to create one.
               </div>
             ) : (
               <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-2">
-                {advertisements.map(ad => (
-                  <button
-                    key={ad.id}
-                    onClick={() => {
-                      setSelectedAdId(ad.id);
-                      setName(`${ad.role} Campaign`);
-                    }}
-                    className={`w-full text-left p-3 border rounded-lg transition ${
-                      selectedAdId === ad.id
-                        ? 'border-blue-600 bg-blue-50'
-                        : 'border-gray-300 hover:border-gray-400'
-                    }`}
-                  >
-                    <div className="font-semibold">{ad.role}</div>
-                    <div className="text-xs text-gray-600 mt-1">
-                      {ad.locations.join(', ')} • Created {new Date(ad.finalizedAt).toLocaleDateString()}
-                    </div>
-                    {ad.timeRanges && ad.timeRanges.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-2">
-                        {ad.timeRanges.map((range, idx) => (
-                          <span key={idx} className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-mono">
-                            {range.start}-{range.end}
+                {selectedJobs.map(jobRole => {
+                  const ad = advertisements.find(a => a.role === jobRole);
+                  return (
+                    <button
+                      key={jobRole}
+                      onClick={() => {
+                        setSelectedJobRole(jobRole);
+                        setName(`${jobRole} Campaign`);
+                      }}
+                      className={`w-full text-left p-3 border rounded-lg transition ${
+                        selectedJobRole === jobRole
+                          ? 'border-blue-600 bg-blue-50'
+                          : 'border-gray-300 hover:border-gray-400'
+                      }`}
+                    >
+                      <div className="font-semibold">{jobRole}</div>
+                      <div className="text-xs text-gray-600 mt-1">
+                        {ad ? (
+                          <>
+                            {ad.locations.join(', ')} • Finalized {new Date(ad.finalizedAt).toLocaleDateString()}
+                            {ad.timeRanges && ad.timeRanges.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {ad.timeRanges.map((range, idx) => (
+                                  <span key={idx} className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs font-mono">
+                                    {range.start}-{range.end}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-gray-500">
+                            {selectedLocations.length > 0 ? selectedLocations.join(', ') : 'No locations selected'} • In progress
                           </span>
-                        ))}
+                        )}
                       </div>
-                    )}
-                  </button>
-                ))}
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1090,8 +1109,8 @@ function NewCampaignModal({ advertisements, campaigns, onClose, onCreateCampaign
             </button>
             <button
               onClick={handleCreate}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
-              disabled={!selectedAd || !name.trim()}
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={!selectedJobRole || !name.trim()}
             >
               Create Campaign
             </button>
