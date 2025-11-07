@@ -1397,8 +1397,6 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                   </div>
                 </div>
               )}
-
-              <TestPanel />
                 </>
               )}
             </div>

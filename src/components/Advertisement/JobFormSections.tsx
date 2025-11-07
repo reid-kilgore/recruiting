@@ -685,7 +685,7 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
                             </span>
                           </div>
                           <div className="text-xs text-gray-600 mt-1">
-                            {campaign.locations.join(', ')} • {campaign.jobs.join(', ')}
+                            {formatLocations(campaign.locations)} • {campaign.jobs.join(', ')}
                           </div>
                         </button>
                       ))}
