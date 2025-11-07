@@ -12,13 +12,20 @@ const Label: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <label className="block text-[13px] text-gray-700 mb-1">{children}</label>
 );
 
-const Field: React.FC<{ span?: string; hint?: string; children: React.ReactNode; label?: string }> = ({ span = "col-span-12 sm:col-span-6 lg:col-span-4", hint, children, label }) => (
+const Field: React.FC<{ span?: string; hint?: string; children: React.ReactNode; label?: string; active?: boolean }> = ({ span = "col-span-12 sm:col-span-6 lg:col-span-4", hint, children, label, active = false }) => (
   <div className={span}>
-    {label ? <Label>{label}</Label> : null}
-    {children}
+    {label && !active ? <Label>{label}</Label> : null}
+    {label && active ? (
+      <div className={`relative border rounded-md px-2 pt-2 pb-1 bg-white min-h-[38px] ${active ? 'border-gray-600' : 'border-gray-400'}`}>
+        <div className="absolute left-2 -top-2 bg-white px-1 text-[11px] text-gray-500">{label}</div>
+        {children}
+      </div>
+    ) : children}
     {hint ? <div className="mt-1 text-[11px] text-gray-500">{hint}</div> : null}
   </div>
 );
+
+const inputBase = "w-full bg-transparent outline-none text-sm py-1";
 
 const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
   <input {...props} className={"w-full h-9 px-2 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 " + (props.className || "")} />
@@ -101,6 +108,39 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
   const [payOption, setPayOption] = useState<"exact" | "range" | "omit">(jobFormData.payOption || "exact");
   const [payExact, setPayExact] = useState(jobFormData.payExact || "18.50");
   const [tipEligible, setTipEligible] = useState(jobFormData.tipEligible || false);
+
+  // Campaign modal states
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
+  const [campaignName, setCampaignName] = useState('');
+  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [endMode, setEndMode] = useState<'date' | 'budget' | 'hires'>('date');
+  const [endDate, setEndDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 30);
+    return d.toISOString().slice(0, 10);
+  });
+  const [endBudget, setEndBudget] = useState(1000);
+  const [endHires, setEndHires] = useState(10);
+
+  // Previous postings database (filtered by job role)
+  const previousPostings: Record<string, any[]> = {
+    'Cook': [
+      { id: 'cook-1', date: '2025-10-15', location: 'Boston', description: 'Experienced line cook for high-volume kitchen', skills: ['Food Handler', 'Knife Skills', 'Grill Station'], benefits: ['Health', 'PTO', '401k'], payExact: '22.00' },
+      { id: 'cook-2', date: '2025-09-20', location: 'LGA', description: 'Prep cook with 2+ years experience', skills: ['Food Handler', 'Prep Work'], benefits: ['Health', 'PTO'], payExact: '19.50' },
+    ],
+    'Server': [
+      { id: 'server-1', date: '2025-10-01', location: 'DCA', description: 'Friendly server for upscale dining', skills: ['POS (Square)', 'Wine Knowledge'], benefits: ['Health', 'Tips'], payExact: '15.00' },
+      { id: 'server-2', date: '2025-09-15', location: 'Boston', description: 'Experienced server, casual dining', skills: ['POS (Toast)', 'Customer Service'], benefits: ['Health'], payExact: '14.50' },
+    ],
+    'Bartender': [
+      { id: 'bartender-1', date: '2025-09-25', location: 'ORD', description: 'Craft cocktail bartender', skills: ['Mixology', 'POS (Square)'], benefits: ['Health', 'Tips'], payExact: '16.00' },
+    ],
+    'Host': [
+      { id: 'host-1', date: '2025-10-10', location: 'Boston', description: 'Welcoming host for fine dining', skills: ['Reservations', 'Customer Service'], benefits: ['Health'], payExact: '15.50' },
+    ],
+  };
+
+  const availablePreviousPostings = previousPostings[_jobRole] || [];
 
   const goToNextSection = () => {
     const currentIndex = SECTION_ORDER.indexOf(activeSection);
@@ -220,40 +260,53 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
         </div>
       )}
 
+      {/* Copy from Previous Posting - outside the details box */}
+      {activeSection === 'details' && availablePreviousPostings.length > 0 && (
+        <div className="mb-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+          <label className="block text-xs font-semibold text-gray-700 mb-2">Copy from Previous {_jobRole} Posting</label>
+          <select
+            className="w-full h-9 px-2 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => {
+              const postingId = e.target.value;
+              if (postingId) {
+                const posting = availablePreviousPostings.find(p => p.id === postingId);
+                if (posting) {
+                  setDescription(posting.description);
+                  setSkills(posting.skills);
+                  setBenefits(posting.benefits);
+                  setPayExact(posting.payExact);
+                  setPayOption('exact');
+                }
+              }
+            }}
+            defaultValue=""
+          >
+            <option value="">-- Select a previous posting --</option>
+            {availablePreviousPostings.map(posting => (
+              <option key={posting.id} value={posting.id}>
+                {posting.location} ({posting.date}) - {posting.description.substring(0, 40)}...
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Section Content */}
       <div className="space-y-4">
         {activeSection === 'details' && (
           <div className="bg-white border rounded-xl p-5 shadow-sm">
-            {/* Copy from Previous Posting */}
-            <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
-              <label className="block text-xs font-semibold text-gray-700 mb-2">Copy from Previous Posting</label>
-              <select
-                className="w-full h-9 px-2 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                onChange={(e) => {
-                  if (e.target.value) {
-                    // In a real app, this would load data from the selected posting
-                    alert('Copy from previous posting: ' + e.target.value);
-                  }
-                }}
-                defaultValue=""
-              >
-                <option value="">-- Select a previous posting --</option>
-                <option value="cook-boston-2025">Cook - Boston (2025-10-15)</option>
-                <option value="server-lga-2025">Server - LGA (2025-10-01)</option>
-                <option value="bartender-dca-2025">Bartender - DCA (2025-09-20)</option>
-              </select>
-            </div>
-
             <div className="grid grid-cols-12 gap-3">
+              {/* Imported from indicator */}
+              <div className="col-span-12 mb-2 px-2 py-1 rounded text-xs" style={{ backgroundColor: '#c0a1dd', color: '#fff' }}>
+                Imported from {_jobRole} Settings
+              </div>
+
               <Field label="Title"><Input placeholder="Line Cook" defaultValue="Line Cook" /></Field>
 
             {/* Two column layout for description and other details */}
             <div className="col-span-12 grid grid-cols-2 gap-4">
               {/* Left: Job Description */}
               <Field span="col-span-1" label="Job Description">
-                <div className="mb-2 px-2 py-1 rounded text-xs" style={{ backgroundColor: '#c0a1dd', color: '#fff' }}>
-                  Imported from {_jobRole} Settings
-                </div>
                 <Textarea
                   placeholder="Describe duties and environment…"
                   rows={4}
@@ -581,10 +634,7 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
       </div>
 
       {/* Add to Existing Campaign Modal */}
-      {showAddToExistingModal && (() => {
-        const [selectedCampaignId, setSelectedCampaignId] = React.useState<string>('');
-
-        return (
+      {showAddToExistingModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowAddToExistingModal(false)}>
             <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="p-6">
@@ -671,29 +721,10 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
               </div>
             </div>
           </div>
-        );
-      })()}
+      )}
 
       {/* Create Campaign Modal */}
-      {showCreateCampaignModal && (() => {
-        const [campaignName, setCampaignName] = React.useState(`${_jobRole} Campaign`);
-        const today = new Date();
-        const [startDate, setStartDate] = React.useState(today.toISOString().slice(0, 10));
-        const [endMode, setEndMode] = React.useState<'budget' | 'hires' | 'date'>('date');
-        const [endBudget, setEndBudget] = React.useState(1000);
-        const [endHires, setEndHires] = React.useState(10);
-        const tmpEnd = new Date(); tmpEnd.setDate(tmpEnd.getDate() + 30);
-        const [endDate, setEndDate] = React.useState(tmpEnd.toISOString().slice(0, 10));
-
-        const Field = ({label, children, active = false}: {label: string; children: React.ReactNode; active?: boolean})=> (
-          <div className={`relative border rounded-md px-2 pt-2 pb-1 bg-white min-h-[38px] ${active ? 'border-gray-600' : 'border-gray-400'}`}>
-            <div className="absolute left-2 -top-2 bg-white px-1 text-[11px] text-gray-500">{label}</div>
-            {children}
-          </div>
-        );
-        const inputBase = "w-full bg-transparent outline-none text-sm py-1";
-
-        return (
+      {showCreateCampaignModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowCreateCampaignModal(false)}>
             <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div className="p-6">
@@ -838,8 +869,7 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
               </div>
             </div>
           </div>
-        );
-      })()}
+      )}
     </div>
   );
 }

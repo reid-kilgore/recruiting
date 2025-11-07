@@ -873,36 +873,52 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
               </div>
 
               {/* Suggested Priority Time Ranges */}
-              {!heatmapCollapsed && selectedRole && (
-                <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <div className="text-xs font-semibold text-gray-700 mb-2">Suggested Priority Time Ranges:</div>
-                  <div className="flex flex-wrap gap-2">
-                    {[
-                      { label: 'All', start: '00:00', end: '23:30', days: [0,1,2,3,4,5,6] },
-                      { label: 'Lunch Rush', start: '11:00', end: '14:00', days: [0,1,2,3,4] },
-                      { label: 'Dinner Rush', start: '17:00', end: '22:00', days: [0,1,2,3,4] },
-                      { label: 'Weekend Nights', start: '18:00', end: '23:00', days: [5,6] },
-                    ].map((suggestion, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => {
-                          const currentJobForm = jobForms.find(f => f.role === selectedRole);
-                          const existingRanges = currentJobForm?.timeRanges || [];
-                          const newRange = { start: suggestion.start, end: suggestion.end, days: suggestion.days };
-                          setJobForms(prev => prev.map(f =>
-                            f.role === selectedRole
-                              ? { ...f, timeRanges: [...existingRanges, newRange] }
-                              : f
-                          ));
-                        }}
-                        className="px-3 py-1 bg-white border border-blue-300 rounded text-xs font-medium text-blue-700 hover:bg-blue-100 transition"
-                      >
-                        {suggestion.label}
-                      </button>
-                    ))}
+              {!heatmapCollapsed && selectedRole && (() => {
+                // Find the worst time slots based on heatmap data
+                const suggestions = [
+                  { start: '11:00', end: '14:00', days: [0,1,2,3,4], label: 'Lunch (Mon-Fri)', slots: [[0,22,28],[1,22,28],[2,22,28],[3,22,28],[4,22,28]] },
+                  { start: '17:00', end: '22:00', days: [0,1,2,3,4], label: 'Dinner (Mon-Fri)', slots: [[0,34,44],[1,34,44],[2,34,44],[3,34,44],[4,34,44]] },
+                  { start: '18:00', end: '23:00', days: [5,6], label: 'Weekend Evenings', slots: [[5,36,46],[6,36,46]] },
+                  { start: '08:00', end: '23:30', days: [0,1,2,3,4,5,6], label: 'All Hours', slots: [[0,16,47],[1,16,47],[2,16,47],[3,16,47],[4,16,47],[5,16,47],[6,16,47]] },
+                ];
+
+                return (
+                  <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="text-xs font-semibold text-gray-700 mb-2">Suggested Priority Time Ranges:</div>
+                    <div className="flex flex-wrap gap-2">
+                      {suggestions.map((suggestion, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            // Add these slots to selectedSlots
+                            const newSlots = new Set(selectedSlots);
+                            suggestion.slots.forEach(([day, startSlot, endSlot]) => {
+                              for (let slot = startSlot; slot <= endSlot; slot++) {
+                                newSlots.add(`${day}-${slot}`);
+                              }
+                            });
+                            setSelectedSlots(newSlots);
+
+                            // Also update the timeRanges for the job form
+                            const currentJobForm = jobForms.find(f => f.role === selectedRole);
+                            const existingRanges = currentJobForm?.timeRanges || [];
+                            const newRange = { start: suggestion.start, end: suggestion.end, days: suggestion.days };
+                            setJobForms(prev => prev.map(f =>
+                              f.role === selectedRole
+                                ? { ...f, timeRanges: [...existingRanges, newRange] }
+                                : f
+                            ));
+                          }}
+                          className="px-3 py-1 bg-white border border-blue-300 rounded text-xs font-medium hover:bg-blue-100 transition"
+                        >
+                          <div className="font-semibold text-blue-700">{suggestion.start} - {suggestion.end}</div>
+                          <div className="text-[10px] text-blue-600">{suggestion.label}</div>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
 
               {/* Views */}
               <div className={`flex-1 overflow-auto ${heatmapCollapsed ? 'hidden' : ''}`}>
