@@ -1423,11 +1423,11 @@ function WeekGrid({
                 left: `calc(60px + ${rect.day} * (100% - 60px) / 7 + ${rect.day} * 2px)`,
                 width: `calc((100% - 60px) / 7)`,
                 height: `${height}px`,
-                border: '4px solid #009cd9',
+                border: '4px solid #a855f7',
                 borderRadius: '4px',
-                backgroundColor: 'rgba(0, 156, 217, 0.15)',
-                backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0, 156, 217, 0.1) 4px, rgba(0, 156, 217, 0.1) 8px)',
-                boxShadow: '0 0 8px rgba(0, 156, 217, 0.4)',
+                backgroundColor: 'rgba(168, 85, 247, 0.25)',
+                backgroundImage: 'repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.4) 5px, transparent 5px, transparent 10px)',
+                boxShadow: '0 0 12px rgba(168, 85, 247, 0.6), inset 0 0 20px rgba(168, 85, 247, 0.2)',
                 boxSizing: 'border-box',
                 zIndex: 10
               }}
