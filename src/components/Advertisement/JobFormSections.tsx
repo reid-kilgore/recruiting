@@ -98,6 +98,7 @@ const SECTION_ORDER: SectionTab[] = ['details', 'questions', 'preview'];
 export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRanges, selectedLocations, onFinalize, jobFormData = {}, onUpdateJobData, campaigns = [], onNavigateToCampaign, onAddJobToCampaign, onCreateCampaign }: JobFormSectionsProps) {
   // jobRole is used by parent for identification, not displayed since it's shown in the tab
   const [activeSection, setActiveSection] = useState<SectionTab>('details');
+  const [previewDevice, setPreviewDevice] = useState<'desktop' | 'mobile'>('desktop');
   const [showAddToExistingModal, setShowAddToExistingModal] = useState(false);
   const [showCreateCampaignModal, setShowCreateCampaignModal] = useState(false);
 
@@ -533,13 +534,43 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
         )}
 
         {activeSection === 'preview' && (
-          <div className="bg-white border rounded-xl p-6 shadow-sm">
+          <div>
+            {/* Device Toggle */}
+            <div className="flex gap-2 mb-4">
+              <button
+                onClick={() => setPreviewDevice('desktop')}
+                className={`px-4 py-2 rounded-lg font-medium text-sm transition ${
+                  previewDevice === 'desktop'
+                    ? 'bg-gray-900 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Desktop
+              </button>
+              <button
+                onClick={() => setPreviewDevice('mobile')}
+                className={`px-4 py-2 rounded-lg font-medium text-sm transition ${
+                  previewDevice === 'mobile'
+                    ? 'bg-gray-900 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Mobile
+              </button>
+            </div>
+
+            {/* Preview Container */}
+            <div className="flex justify-center">
+              <div
+                className="bg-white border rounded-xl p-6 shadow-sm transition-all"
+                style={previewDevice === 'mobile' ? { maxWidth: '375px', width: '100%' } : {}}
+              >
             {/* Header */}
             <div className="border-b pb-4 mb-4">
               <div className="flex items-start justify-between">
                 <div>
-                  <h2 className="text-2xl font-bold text-gray-900">{_jobRole}</h2>
-                  <div className="text-sm text-gray-600 mt-1">
+                  <h2 className={`font-bold text-gray-900 ${previewDevice === 'mobile' ? 'text-xl' : 'text-2xl'}`}>{_jobRole}</h2>
+                  <div className={`text-gray-600 mt-1 ${previewDevice === 'mobile' ? 'text-xs' : 'text-sm'}`}>
                     TechCorp Solutions • {formatLocations(selectedLocations)}
                   </div>
                 </div>
@@ -548,21 +579,21 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
 
             {/* Company Info */}
             <div className="mb-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">About the Company</h3>
-              <p className="text-sm text-gray-600">
+              <h3 className={`font-semibold text-gray-700 mb-2 ${previewDevice === 'mobile' ? 'text-xs' : 'text-sm'}`}>About the Company</h3>
+              <p className={`text-gray-600 ${previewDevice === 'mobile' ? 'text-xs' : 'text-sm'}`}>
                 We are a growing hospitality group operating two high‑volume concepts.
               </p>
               <div className="flex flex-wrap gap-2 mt-2">
-                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Collaborative</span>
-                <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs">Fast-paced</span>
+                <span className={`px-2 py-1 bg-gray-100 text-gray-700 rounded ${previewDevice === 'mobile' ? 'text-[10px]' : 'text-xs'}`}>Collaborative</span>
+                <span className={`px-2 py-1 bg-gray-100 text-gray-700 rounded ${previewDevice === 'mobile' ? 'text-[10px]' : 'text-xs'}`}>Fast-paced</span>
               </div>
             </div>
 
             {/* Job Description */}
             {description && (
               <div className="mb-4">
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">Job Description</h3>
-                <p className="text-sm text-gray-600">
+                <h3 className={`font-semibold text-gray-700 mb-2 ${previewDevice === 'mobile' ? 'text-xs' : 'text-sm'}`}>Job Description</h3>
+                <p className={`text-gray-600 ${previewDevice === 'mobile' ? 'text-xs' : 'text-sm'}`}>
                   {description}
                 </p>
               </div>
@@ -570,29 +601,29 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
 
             {/* Skills */}
             <div className="mb-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Required Skills</h3>
+              <h3 className={`font-semibold text-gray-700 mb-2 ${previewDevice === 'mobile' ? 'text-xs' : 'text-sm'}`}>Required Skills</h3>
               <div className="flex flex-wrap gap-2">
                 {skills.map((s, i) => (
-                  <span key={i} className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs">{s}</span>
+                  <span key={i} className={`px-2 py-1 bg-blue-50 text-blue-700 rounded ${previewDevice === 'mobile' ? 'text-[10px]' : 'text-xs'}`}>{s}</span>
                 ))}
               </div>
             </div>
 
             {/* Compensation */}
             <div className="mb-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Compensation & Benefits</h3>
+              <h3 className={`font-semibold text-gray-700 mb-2 ${previewDevice === 'mobile' ? 'text-xs' : 'text-sm'}`}>Compensation & Benefits</h3>
               {payOption !== 'omit' && (
-                <div className="text-sm text-gray-600 mb-2">
+                <div className={`text-gray-600 mb-2 ${previewDevice === 'mobile' ? 'text-xs' : 'text-sm'}`}>
                   <span className="font-medium">Pay:</span> {payOption === 'exact' ? `$${payExact}/hour` : 'Range to be discussed'}
                 </div>
               )}
               <div className="flex flex-wrap gap-2">
                 {benefits.map((b, i) => (
-                  <span key={i} className="px-2 py-1 bg-green-50 text-green-700 rounded text-xs">{b}</span>
+                  <span key={i} className={`px-2 py-1 bg-green-50 text-green-700 rounded ${previewDevice === 'mobile' ? 'text-[10px]' : 'text-xs'}`}>{b}</span>
                 ))}
               </div>
               {tipEligible && (
-                <div className="mt-2 text-sm text-gray-600">
+                <div className={`mt-2 text-gray-600 ${previewDevice === 'mobile' ? 'text-xs' : 'text-sm'}`}>
                   <span className="font-medium">✓</span> Tip eligible position
                 </div>
               )}
@@ -600,17 +631,17 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
 
             {/* Schedule */}
             <div className="mb-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Schedule</h3>
-              <div className="text-sm text-gray-600 mb-2">Full-time</div>
+              <h3 className={`font-semibold text-gray-700 mb-2 ${previewDevice === 'mobile' ? 'text-xs' : 'text-sm'}`}>Schedule</h3>
+              <div className={`text-gray-600 mb-2 ${previewDevice === 'mobile' ? 'text-xs' : 'text-sm'}`}>Full-time</div>
               {timeRanges && timeRanges.length > 0 && (
                 <>
-                  <div className="text-xs font-medium text-gray-600 mb-1">Priority Time Ranges:</div>
+                  <div className={`font-medium text-gray-600 mb-1 ${previewDevice === 'mobile' ? 'text-[10px]' : 'text-xs'}`}>Priority Time Ranges:</div>
                   <div className="flex flex-wrap gap-2">
                     {timeRanges.map((range, idx) => (
                       <div key={idx} className="inline-flex flex-col bg-purple-50 text-purple-700 rounded px-2 py-1">
-                        <span className="text-xs font-mono font-medium">{range.start} - {range.end}</span>
+                        <span className={`font-mono font-medium ${previewDevice === 'mobile' ? 'text-[10px]' : 'text-xs'}`}>{range.start} - {range.end}</span>
                         {range.days && range.days.length > 0 && (
-                          <span className="text-[10px] text-purple-600">{formatDays(range.days)}</span>
+                          <span className={`text-purple-600 ${previewDevice === 'mobile' ? 'text-[9px]' : 'text-[10px]'}`}>{formatDays(range.days)}</span>
                         )}
                       </div>
                     ))}
@@ -621,13 +652,15 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
 
             {/* Application Questions */}
             <div className="mb-6">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Application Questions</h3>
-              <div className="space-y-2 text-sm text-gray-600">
+              <h3 className={`font-semibold text-gray-700 mb-2 ${previewDevice === 'mobile' ? 'text-xs' : 'text-sm'}`}>Application Questions</h3>
+              <div className={`space-y-2 text-gray-600 ${previewDevice === 'mobile' ? 'text-xs' : 'text-sm'}`}>
                 {questions.map((q, idx) => (
                   <div key={q.id}>
                     {idx + 1}. {q.type} question {q.limit && `(${q.limit} ${q.type === 'Video' ? 'second' : 'character'} limit)`}
                   </div>
                 ))}
+              </div>
+            </div>
               </div>
             </div>
           </div>
