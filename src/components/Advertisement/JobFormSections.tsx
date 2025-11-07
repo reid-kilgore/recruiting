@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { LOCATIONS, formatLocations } from '../../config/locations';
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -126,14 +127,14 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
   const previousPostings: Record<string, any[]> = {
     'Cook': [
       { id: 'cook-1', date: '2025-10-15', location: 'Boston', description: 'Experienced line cook for high-volume kitchen', skills: ['Food Handler', 'Knife Skills', 'Grill Station'], benefits: ['Health', 'PTO', '401k'], payExact: '22.00' },
-      { id: 'cook-2', date: '2025-09-20', location: 'LGA', description: 'Prep cook with 2+ years experience', skills: ['Food Handler', 'Prep Work'], benefits: ['Health', 'PTO'], payExact: '19.50' },
+      { id: 'cook-2', date: '2025-09-20', location: LOCATIONS.LGA, description: 'Prep cook with 2+ years experience', skills: ['Food Handler', 'Prep Work'], benefits: ['Health', 'PTO'], payExact: '19.50' },
     ],
     'Server': [
-      { id: 'server-1', date: '2025-10-01', location: 'DCA', description: 'Friendly server for upscale dining', skills: ['POS (Square)', 'Wine Knowledge'], benefits: ['Health', 'Tips'], payExact: '15.00' },
+      { id: 'server-1', date: '2025-10-01', location: LOCATIONS.DCA, description: 'Friendly server for upscale dining', skills: ['POS (Square)', 'Wine Knowledge'], benefits: ['Health', 'Tips'], payExact: '15.00' },
       { id: 'server-2', date: '2025-09-15', location: 'Boston', description: 'Experienced server, casual dining', skills: ['POS (Toast)', 'Customer Service'], benefits: ['Health'], payExact: '14.50' },
     ],
     'Bartender': [
-      { id: 'bartender-1', date: '2025-09-25', location: 'ORD', description: 'Craft cocktail bartender', skills: ['Mixology', 'POS (Square)'], benefits: ['Health', 'Tips'], payExact: '16.00' },
+      { id: 'bartender-1', date: '2025-09-25', location: LOCATIONS.ORD, description: 'Craft cocktail bartender', skills: ['Mixology', 'POS (Square)'], benefits: ['Health', 'Tips'], payExact: '16.00' },
     ],
     'Host': [
       { id: 'host-1', date: '2025-10-10', location: 'Boston', description: 'Welcoming host for fine dining', skills: ['Reservations', 'Customer Service'], benefits: ['Health'], payExact: '15.50' },
@@ -539,7 +540,7 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
                 <div>
                   <h2 className="text-2xl font-bold text-gray-900">{_jobRole}</h2>
                   <div className="text-sm text-gray-600 mt-1">
-                    TechCorp Solutions • {selectedLocations.join(', ')}
+                    TechCorp Solutions • {formatLocations(selectedLocations)}
                   </div>
                 </div>
               </div>

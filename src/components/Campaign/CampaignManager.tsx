@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from "react";
+import { formatLocations } from "../../config/locations";
 
 // ===============================
 // Campaign Manager – compact, robust single file (JSX only)
@@ -264,7 +265,7 @@ export default function CampaignManager({ selectedLocations: _selectedLocations,
                             )}
                           </div>
                           <div className="text-xs text-gray-600 mt-0.5">
-                            {current.locations.join(', ')}
+                            {formatLocations(current.locations)}
                           </div>
                         </div>
                         <div className="text-right">
@@ -359,7 +360,7 @@ export default function CampaignManager({ selectedLocations: _selectedLocations,
               {/* Row 2: End Criteria */}
               <div className="mb-3">
                 <div className="text-xs text-gray-600 mb-2">Campaign End Criteria</div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   {/* Budget */}
                   <div className="flex items-center gap-2">
                     <input
@@ -370,7 +371,7 @@ export default function CampaignManager({ selectedLocations: _selectedLocations,
                       onChange={() => setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, endMode: 'budget' } : c))}
                       className={current.endMode === 'budget' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
                     />
-                    <div className={`flex-1 ${current.endMode === 'budget' ? '' : 'opacity-60'}`}>
+                    <div className={`${current.endMode === 'budget' ? '' : 'opacity-60'}`} style={{ width: '110px' }}>
                       <Field label="Budget" active={current.endMode === 'budget'}>
                         <input
                           type="number"
@@ -381,7 +382,7 @@ export default function CampaignManager({ selectedLocations: _selectedLocations,
                             const val = Math.max(0, Math.floor(Number(e.target.value || 0)));
                             setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, endBudget: val } : c));
                           }}
-                          disabled={current.endMode !== 'budget'}
+                          onFocus={() => setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, endMode: 'budget' } : c))}
                           className={inputBase}
                         />
                       </Field>
@@ -398,7 +399,7 @@ export default function CampaignManager({ selectedLocations: _selectedLocations,
                       onChange={() => setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, endMode: 'hires' } : c))}
                       className={current.endMode === 'hires' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
                     />
-                    <div className={`flex-1 ${current.endMode === 'hires' ? '' : 'opacity-60'}`}>
+                    <div className={`${current.endMode === 'hires' ? '' : 'opacity-60'}`} style={{ width: '90px' }}>
                       <Field label="Hires" active={current.endMode === 'hires'}>
                         <input
                           type="number"
@@ -409,7 +410,7 @@ export default function CampaignManager({ selectedLocations: _selectedLocations,
                             const val = Math.max(0, Math.floor(Number(e.target.value || 0)));
                             setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, endHires: val } : c));
                           }}
-                          disabled={current.endMode !== 'hires'}
+                          onFocus={() => setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, endMode: 'hires' } : c))}
                           className={inputBase}
                         />
                       </Field>
@@ -426,7 +427,7 @@ export default function CampaignManager({ selectedLocations: _selectedLocations,
                       onChange={() => setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, endMode: 'date' } : c))}
                       className={current.endMode === 'date' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
                     />
-                    <div className={`flex-1 ${current.endMode === 'date' ? '' : 'opacity-60'}`}>
+                    <div className={`${current.endMode === 'date' ? '' : 'opacity-60'}`} style={{ width: '140px' }}>
                       <Field label="End Date" active={current.endMode === 'date'}>
                         <input
                           type="date"
@@ -435,157 +436,61 @@ export default function CampaignManager({ selectedLocations: _selectedLocations,
                             const newDate = e.target.value;
                             setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, endDate: newDate } : c));
                           }}
-                          disabled={current.endMode !== 'date'}
+                          onFocus={() => setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, endMode: 'date' } : c))}
                           className={inputBase}
                         />
                       </Field>
                     </div>
                   </div>
 
-                  {/* Target Staffing */}
-                  <div className="col-span-2">
-                    <div className="flex items-start gap-2">
-                      <input
-                        aria-label="Target Staffing radio"
-                        type="radio"
-                        name="endMode"
-                        checked={current.endMode === 'staffing'}
-                        onChange={() => setCampaigns(prev => prev.map(c => c.id === current.id ? {
-                          ...c,
-                          endMode: 'staffing',
-                          targetStaffing: c.targetStaffing || { good: 70, ok: 25, bad: 5 }
-                        } : c))}
-                        className={`mt-3 ${current.endMode === 'staffing' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}`}
-                      />
-                      <div className={`flex-1 ${current.endMode === 'staffing' ? '' : 'opacity-60'}`}>
-                        <Field label="Target Staffing (%)" active={current.endMode === 'staffing'}>
-                          <div className="space-y-2">
-                            {/* Before / Target Pills */}
-                            <div className="flex gap-4 mb-2">
-                              {/* Before (static example - 40/35/25) */}
-                              <div>
-                                <div className="text-[10px] text-gray-500 mb-1">Before</div>
-                                <div className="flex h-6 rounded overflow-hidden shadow-sm">
-                                  <div className="flex items-center justify-center px-2 text-white text-xs font-medium" style={{ width: '40%', backgroundColor: '#8ace00' }}>40</div>
-                                  <div className="flex items-center justify-center px-2 text-white text-xs font-medium" style={{ width: '35%', backgroundColor: '#6c6c6c' }}>35</div>
-                                  <div className="flex items-center justify-center px-2 text-white text-xs font-medium" style={{ width: '25%', backgroundColor: '#d20011' }}>25</div>
-                                </div>
-                              </div>
-
-                              {/* Arrow */}
-                              <div className="flex items-center text-gray-400">→</div>
-
-                              {/* Target (dynamic) */}
-                              <div>
-                                <div className="text-[10px] text-gray-500 mb-1">Target</div>
-                                <div className="flex h-6 rounded overflow-hidden shadow-sm">
-                                  <div
-                                    className="flex items-center justify-center px-2 text-white text-xs font-medium"
-                                    style={{
-                                      width: `${current.targetStaffing?.good || 70}%`,
-                                      backgroundColor: '#8ace00'
-                                    }}
-                                  >
-                                    {current.targetStaffing?.good || 70}
-                                  </div>
-                                  <div
-                                    className="flex items-center justify-center px-2 text-white text-xs font-medium"
-                                    style={{
-                                      width: `${current.targetStaffing?.ok || 25}%`,
-                                      backgroundColor: '#6c6c6c'
-                                    }}
-                                  >
-                                    {current.targetStaffing?.ok || 25}
-                                  </div>
-                                  <div
-                                    className="flex items-center justify-center px-2 text-white text-xs font-medium"
-                                    style={{
-                                      width: `${current.targetStaffing?.bad || 5}%`,
-                                      backgroundColor: '#d20011'
-                                    }}
-                                  >
-                                    {current.targetStaffing?.bad || 5}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* Input fields */}
-                            <div className="grid grid-cols-3 gap-2">
-                              <div>
-                                <label className="text-[10px] text-gray-600">Good %</label>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={100}
-                                  value={current.targetStaffing?.good || 70}
-                                  onChange={e => {
-                                    const val = Math.max(0, Math.min(100, Number(e.target.value || 0)));
-                                    setCampaigns(prev => prev.map(c => c.id === current.id ? {
-                                      ...c,
-                                      targetStaffing: {
-                                        ...c.targetStaffing,
-                                        good: val,
-                                        ok: c.targetStaffing?.ok || 25,
-                                        bad: c.targetStaffing?.bad || 5
-                                      }
-                                    } : c));
-                                  }}
-                                  disabled={current.endMode !== 'staffing'}
-                                  className="w-full px-2 py-1 text-xs border rounded"
-                                  style={{ borderColor: '#8ace00' }}
-                                />
-                              </div>
-                              <div>
-                                <label className="text-[10px] text-gray-600">OK %</label>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={100}
-                                  value={current.targetStaffing?.ok || 25}
-                                  onChange={e => {
-                                    const val = Math.max(0, Math.min(100, Number(e.target.value || 0)));
-                                    setCampaigns(prev => prev.map(c => c.id === current.id ? {
-                                      ...c,
-                                      targetStaffing: {
-                                        good: c.targetStaffing?.good || 70,
-                                        ok: val,
-                                        bad: c.targetStaffing?.bad || 5
-                                      }
-                                    } : c));
-                                  }}
-                                  disabled={current.endMode !== 'staffing'}
-                                  className="w-full px-2 py-1 text-xs border rounded"
-                                  style={{ borderColor: '#6c6c6c' }}
-                                />
-                              </div>
-                              <div>
-                                <label className="text-[10px] text-gray-600">Bad %</label>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={100}
-                                  value={current.targetStaffing?.bad || 5}
-                                  onChange={e => {
-                                    const val = Math.max(0, Math.min(100, Number(e.target.value || 0)));
-                                    setCampaigns(prev => prev.map(c => c.id === current.id ? {
-                                      ...c,
-                                      targetStaffing: {
-                                        good: c.targetStaffing?.good || 70,
-                                        ok: c.targetStaffing?.ok || 25,
-                                        bad: val
-                                      }
-                                    } : c));
-                                  }}
-                                  disabled={current.endMode !== 'staffing'}
-                                  className="w-full px-2 py-1 text-xs border rounded"
-                                  style={{ borderColor: '#d20011' }}
-                                />
-                              </div>
-                            </div>
+                  {/* Full Coverage % */}
+                  <div className="flex items-center gap-2">
+                    <input
+                      aria-label="Full Coverage % radio"
+                      type="radio"
+                      name="endMode"
+                      checked={current.endMode === 'staffing'}
+                      onChange={() => setCampaigns(prev => prev.map(c => c.id === current.id ? {
+                        ...c,
+                        endMode: 'staffing',
+                        targetStaffing: c.targetStaffing || { good: 70, ok: 25, bad: 5 }
+                      } : c))}
+                      className={current.endMode === 'staffing' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
+                    />
+                    <div className={`${current.endMode === 'staffing' ? '' : 'opacity-60'}`}>
+                      <Field label="Full Coverage %" active={current.endMode === 'staffing'}>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={current.targetStaffing?.good || 70}
+                            onChange={e => {
+                              const val = Math.max(0, Math.min(100, Number(e.target.value || 0)));
+                              setCampaigns(prev => prev.map(c => c.id === current.id ? {
+                                ...c,
+                                targetStaffing: {
+                                  good: val,
+                                  ok: c.targetStaffing?.ok || 25,
+                                  bad: c.targetStaffing?.bad || 5
+                                }
+                              } : c));
+                            }}
+                            onFocus={() => setCampaigns(prev => prev.map(c => c.id === current.id ? {
+                              ...c,
+                              endMode: 'staffing',
+                              targetStaffing: c.targetStaffing || { good: 70, ok: 25, bad: 5 }
+                            } : c))}
+                            className={inputBase}
+                            style={{ width: '60px' }}
+                          />
+                          <div className="flex h-4 w-20 rounded overflow-hidden shadow-sm">
+                            <div style={{ width: `${current.targetStaffing?.good || 70}%`, backgroundColor: '#8ace00' }} />
+                            <div style={{ width: `${current.targetStaffing?.ok || 25}%`, backgroundColor: '#9ca3af' }} />
+                            <div style={{ width: `${current.targetStaffing?.bad || 5}%`, backgroundColor: '#d20011' }} />
                           </div>
-                        </Field>
-                      </div>
+                        </div>
+                      </Field>
                     </div>
                   </div>
                 </div>
@@ -867,6 +772,11 @@ function NewCampaignModal({ advertisements, selectedJobs, selectedLocations, cam
   const [endHires, setEndHires] = useState(10);
   const tmpEnd = new Date(); tmpEnd.setDate(tmpEnd.getDate()+30);
   const [endDate, setEndDate] = useState(isoDate(tmpEnd));
+  const [targetStaffing, setTargetStaffing] = useState({ good: 70, ok: 25, bad: 5 });
+
+  // Calculate if percentages sum to 100
+  const staffingSum = targetStaffing.good + targetStaffing.ok + targetStaffing.bad;
+  const staffingValid = staffingSum === 100;
 
   // Try to find a finalized ad for the selected job, but also support jobs without ads
   const selectedAd = advertisements.find(ad => ad.role === selectedJobRole);
@@ -884,6 +794,7 @@ function NewCampaignModal({ advertisements, selectedJobs, selectedLocations, cam
     setEndBudget(campaign.endBudget || 1000);
     setEndHires(campaign.endHires || 10);
     setEndDate(campaign.endDate || isoDate(tmpEnd));
+    setTargetStaffing(campaign.targetStaffing || { good: 70, ok: 25, bad: 5 });
 
     // If the campaign has jobs, select the first job role
     if (campaign.jobs && campaign.jobs.length > 0) {
@@ -894,6 +805,11 @@ function NewCampaignModal({ advertisements, selectedJobs, selectedLocations, cam
   const handleCreate = () => {
     if (!selectedJobRole || !name.trim()) {
       alert('Please select a job posting and enter a campaign name');
+      return;
+    }
+
+    if (endMode === 'staffing' && !staffingValid) {
+      alert('Target Staffing percentages must sum to 100%');
       return;
     }
 
@@ -909,6 +825,7 @@ function NewCampaignModal({ advertisements, selectedJobs, selectedLocations, cam
       endDate: endMode === 'date' ? endDate : undefined,
       endBudget: endMode === 'budget' ? endBudget : undefined,
       endHires: endMode === 'hires' ? endHires : undefined,
+      targetStaffing: endMode === 'staffing' ? targetStaffing : undefined,
       endMode: endMode,
       timeRanges: selectedAd?.timeRanges || [],
     };
@@ -981,7 +898,7 @@ function NewCampaignModal({ advertisements, selectedJobs, selectedLocations, cam
                       <div className="text-xs text-gray-600 mt-1">
                         {ad ? (
                           <>
-                            {ad.locations.join(', ')} • Finalized {new Date(ad.finalizedAt).toLocaleDateString()}
+                            {formatLocations(ad.locations)} • Finalized {new Date(ad.finalizedAt).toLocaleDateString()}
                             {ad.timeRanges && ad.timeRanges.length > 0 && (
                               <div className="flex flex-wrap gap-1 mt-2">
                                 {ad.timeRanges.map((range, idx) => (
@@ -1031,70 +948,115 @@ function NewCampaignModal({ advertisements, selectedJobs, selectedLocations, cam
 
           {/* End Criteria */}
           <div className="mb-4">
-            <div className="text-sm font-semibold text-gray-700 mb-2">Campaign End Criteria</div>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="text-sm font-semibold text-gray-700 mb-3">Campaign End Criteria</div>
+            <div className="flex items-center gap-2 flex-wrap">
               {/* Budget */}
-              <input
-                aria-label="Budget radio"
-                type="radio"
-                name="end"
-                checked={endMode==='budget'}
-                onChange={()=>setEndMode('budget')}
-                className={endMode==='budget' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
-              />
-              <div className={`flex-1 ${endMode==='budget' ? '' : 'opacity-60'}`}>
-                <Field label="Budget" active={endMode==='budget'}>
-                  <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={endBudget}
-                    onChange={e=>setEndBudget(Math.max(0, Math.floor(Number(e.target.value||0))))}
-                    className={inputBase}
-                  />
-                </Field>
+              <div className="flex items-center gap-2">
+                <input
+                  aria-label="Budget radio"
+                  type="radio"
+                  name="end"
+                  checked={endMode==='budget'}
+                  onChange={()=>setEndMode('budget')}
+                  className={endMode==='budget' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
+                />
+                <div className={`${endMode==='budget' ? '' : 'opacity-60'}`} style={{ width: '110px' }}>
+                  <Field label="Budget" active={endMode==='budget'}>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={endBudget}
+                      onChange={e=>setEndBudget(Math.max(0, Math.floor(Number(e.target.value||0))))}
+                      onFocus={()=>setEndMode('budget')}
+                      className={inputBase}
+                    />
+                  </Field>
+                </div>
               </div>
 
               {/* Hires */}
-              <input
-                aria-label="Hires radio"
-                type="radio"
-                name="end"
-                checked={endMode==='hires'}
-                onChange={()=>setEndMode('hires')}
-                className={endMode==='hires' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
-              />
-              <div className={`flex-1 ${endMode==='hires' ? '' : 'opacity-60'}`}>
-                <Field label="Hires" active={endMode==='hires'}>
-                  <input
-                    type="number"
-                    min={0}
-                    step={1}
-                    value={endHires}
-                    onChange={e=>setEndHires(Math.max(0, Math.floor(Number(e.target.value||0))))}
-                    className={inputBase}
-                  />
-                </Field>
+              <div className="flex items-center gap-2">
+                <input
+                  aria-label="Hires radio"
+                  type="radio"
+                  name="end"
+                  checked={endMode==='hires'}
+                  onChange={()=>setEndMode('hires')}
+                  className={endMode==='hires' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
+                />
+                <div className={`${endMode==='hires' ? '' : 'opacity-60'}`} style={{ width: '90px' }}>
+                  <Field label="Hires" active={endMode==='hires'}>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={endHires}
+                      onChange={e=>setEndHires(Math.max(0, Math.floor(Number(e.target.value||0))))}
+                      onFocus={()=>setEndMode('hires')}
+                      className={inputBase}
+                    />
+                  </Field>
+                </div>
               </div>
 
               {/* End Date */}
-              <input
-                aria-label="End date radio"
-                type="radio"
-                name="end"
-                checked={endMode==='date'}
-                onChange={()=>setEndMode('date')}
-                className={endMode==='date' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
-              />
-              <div className={`flex-1 ${endMode==='date' ? '' : 'opacity-60'}`}>
-                <Field label="End Date" active={endMode==='date'}>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={e=>setEndDate(e.target.value)}
-                    className={inputBase}
-                  />
-                </Field>
+              <div className="flex items-center gap-2">
+                <input
+                  aria-label="End date radio"
+                  type="radio"
+                  name="end"
+                  checked={endMode==='date'}
+                  onChange={()=>setEndMode('date')}
+                  className={endMode==='date' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
+                />
+                <div className={`${endMode==='date' ? '' : 'opacity-60'}`} style={{ width: '140px' }}>
+                  <Field label="End Date" active={endMode==='date'}>
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={e=>setEndDate(e.target.value)}
+                      onFocus={()=>setEndMode('date')}
+                      className={inputBase}
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              {/* Full Coverage % */}
+              <div className="flex items-center gap-2">
+                <input
+                  aria-label="Full Coverage % radio"
+                  type="radio"
+                  name="end"
+                  checked={endMode==='staffing'}
+                  onChange={()=>setEndMode('staffing')}
+                  className={endMode==='staffing' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
+                />
+                <div className={`${endMode==='staffing' ? '' : 'opacity-60'}`}>
+                  <Field label="Full Coverage %" active={endMode==='staffing'}>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        value={targetStaffing.good}
+                        onChange={e => {
+                          const val = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+                          setTargetStaffing(prev => ({ ...prev, good: val }));
+                        }}
+                        onFocus={()=>setEndMode('staffing')}
+                        className={inputBase}
+                        style={{ width: '60px' }}
+                      />
+                      <div className="flex h-4 w-20 rounded overflow-hidden shadow-sm">
+                        <div style={{ width: `${targetStaffing.good}%`, backgroundColor: '#8ace00' }} />
+                        <div style={{ width: `${targetStaffing.ok}%`, backgroundColor: '#9ca3af' }} />
+                        <div style={{ width: `${targetStaffing.bad}%`, backgroundColor: '#d20011' }} />
+                      </div>
+                    </div>
+                  </Field>
+                </div>
               </div>
             </div>
           </div>

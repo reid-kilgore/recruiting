@@ -1,6 +1,7 @@
 
 import { useMemo, useState, useEffect } from "react"
 import JobFormSections from "../Advertisement/JobFormSections"
+import { LOCATION_LIST, LOCATION_REGIONS, getLocationName, formatLocations } from "../../config/locations"
 
 // Planning Wireframe V3.2 — fixes stray brace and restores WeekGrid separation.
 // - Header: Location + KPIs only
@@ -57,7 +58,7 @@ function noise(seed: number, d: number, s: number) {
   return (x - Math.floor(x)) * 2 - 1
 }
 
-function genWeek(role: string | null, weekOffset = 0, location?: string) {
+function genWeek(role: string | null, weekOffset = 0, location?: string | string[]) {
   // If no role, generate aggregate across all roles
   if (!role) {
     const allRoles = ['Cook', 'Server', 'Bartender', 'Host']
@@ -83,6 +84,42 @@ function genWeek(role: string | null, weekOffset = 0, location?: string) {
           demand: totalDemand,
           supply: totalSupply,
           closed: anyClosed
+        }
+      })
+    ))
+  }
+
+  // If location is an array (multiple locations/region), aggregate across them
+  // Take the WORST (minimum) status across all locations for each slot
+  if (Array.isArray(location)) {
+    const allData = location.map(loc => genWeek(role, weekOffset, loc))
+
+    return Array.from({ length: 7 }, (_, d) => (
+      Array.from({ length: 48 }, (_, s) => {
+        let worstDelta = Infinity
+        let worstDemand = 0
+        let worstSupply = 0
+        let allClosed = true
+
+        allData.forEach(locData => {
+          const cell = locData[d][s]
+          if (!cell.closed) {
+            allClosed = false
+            // Calculate delta for this location's cell
+            const delta = cell.demand > 0 ? (cell.supply - cell.demand) / cell.demand : 0
+            // Keep the worst (most negative) delta
+            if (delta < worstDelta) {
+              worstDelta = delta
+              worstDemand = cell.demand
+              worstSupply = cell.supply
+            }
+          }
+        })
+
+        return {
+          demand: worstDemand,
+          supply: worstSupply,
+          closed: allClosed
         }
       })
     ))
@@ -233,7 +270,7 @@ function formatDate(dateStr: string): string {
 }
 
 export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelectedJobs, selectedLocations, setSelectedLocations, jobForms, setJobForms, onStartHiring, campaigns, onUpdateCampaignStatus, onAddJobToCampaign, onCreateCampaign }: PlanningScreenProps) {
-  const availableLocations = ['BOS', 'LGA', 'DCA', 'ORD']
+  const availableLocations = LOCATION_LIST
   const roles = [
     { role: "Cook", demand: 10, supply: 7 },
     { role: "Server", demand: 8, supply: 8 },
@@ -242,7 +279,7 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
   ]
   const [selectedRole, setSelectedRole] = useState<string | null>(null)
   const [expandedRole, setExpandedRole] = useState<string | null>(null)
-  const [selectedLocationForRole, setSelectedLocationForRole] = useState<string | null>(null)
+  const [selectedLocationForRole, setSelectedLocationForRole] = useState<string | string[] | null>(null)
   const [selectedSlots, setSelectedSlots] = useState<Set<string>>(new Set()) // Format: "day-slotIndex"
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -508,7 +545,7 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                       </div>
                       <div>
                         <span className="text-gray-500">Locations:</span>
-                        <span className="ml-1 font-medium">{selectedLocations.join(', ')}</span>
+                        <span className="ml-1 font-medium">{formatLocations(selectedLocations)}</span>
                       </div>
                       <div>
                         <span className="text-gray-500">Priority Time Ranges:</span>
@@ -665,44 +702,117 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                       </div>
                     </div>
 
-                    {/* Location breakdown (when expanded) */}
+                    {/* Location breakdown (when expanded) - Hierarchical by Region */}
                     {isExpanded && locationBreakdown[r.role] && (
                       <div className="border-t bg-gray-50">
-                        {availableLocations.map(loc => {
-                          const data = locationBreakdown[r.role][loc]
-                          if (!data) return null
-                          const isLocationSelected = selectedLocationForRole === loc && selectedRole === r.role
-                          const isChecked = selectedLocations.includes(loc)
+                        {LOCATION_REGIONS.map(region => {
+                          // Check which locations in this region have data
+                          const locationsWithData = region.locations.filter(loc => locationBreakdown[r.role][loc])
+                          if (locationsWithData.length === 0) return null
+
+                          // Only show region grouping if ALL locations from region are present
+                          const isCompleteRegion = locationsWithData.length === region.locations.length
+                          const allRegionLocationsChecked = region.locations.every(loc => selectedLocations.includes(loc))
+                          const someRegionLocationsChecked = region.locations.some(loc => selectedLocations.includes(loc))
+
                           return (
-                            <div
-                              key={loc}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setSelectedRole(r.role)
-                                setSelectedJobs([r.role])
-                                setSelectedLocationForRole(isLocationSelected ? null : loc)
-                              }}
-                              className={`px-3 py-2 flex items-center gap-2 cursor-pointer hover:bg-gray-100 transition`}
-                              style={isLocationSelected ? { backgroundColor: '#e0f5fc', borderLeft: '4px solid #009cd9', paddingLeft: '8px' } : {}}
-                            >
-                              {/* Checkbox for global location selection */}
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  e.stopPropagation()
-                                  toggleLocationSelection(loc)
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                className="w-4 h-4 border-gray-300 rounded focus:ring-2 cursor-pointer"
-                                style={{ accentColor: '#009cd9' }}
-                              />
-                              <div className="text-sm font-medium flex-1">{loc}</div>
-                              <div className="h-2 w-20 rounded flex overflow-hidden">
-                                <div className="h-2" style={{ width: `${data.good}%`, background: '#8ace00' }} />
-                                <div className="h-2" style={{ width: `${data.ok}%`, background: '#6c6c6c' }} />
-                                <div className="h-2" style={{ width: `${data.bad}%`, background: '#d20011' }} />
-                              </div>
+                            <div key={region.name}>
+                              {/* Region Header with checkbox - only show when complete */}
+                              {isCompleteRegion && (
+                                <div
+                                  className="px-3 py-1.5 bg-gray-100 flex items-center gap-2 cursor-pointer hover:bg-gray-200 transition"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setSelectedRole(r.role)
+                                    setSelectedJobs([r.role])
+                                    // Toggle region selection for heatmap
+                                    const isRegionSelected = Array.isArray(selectedLocationForRole) &&
+                                      selectedLocationForRole.length === region.locations.length &&
+                                      region.locations.every(loc => selectedLocationForRole.includes(loc))
+                                    setSelectedLocationForRole(isRegionSelected ? null : region.locations)
+                                  }}
+                                  style={
+                                    Array.isArray(selectedLocationForRole) &&
+                                    selectedLocationForRole.length === region.locations.length &&
+                                    region.locations.every(loc => selectedLocationForRole.includes(loc))
+                                      ? { backgroundColor: '#e0f5fc', borderLeft: '4px solid #009cd9', paddingLeft: '8px' }
+                                      : {}
+                                  }
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={allRegionLocationsChecked}
+                                    ref={(el) => {
+                                      if (el) el.indeterminate = someRegionLocationsChecked && !allRegionLocationsChecked
+                                    }}
+                                    onChange={(e) => {
+                                      e.stopPropagation()
+                                      // Toggle all locations in region at once
+                                      if (allRegionLocationsChecked) {
+                                        // Uncheck all locations in this region
+                                        setSelectedLocations(prev => prev.filter(loc => !region.locations.includes(loc)))
+                                      } else {
+                                        // Check all locations in this region
+                                        setSelectedLocations(prev => {
+                                          const newSet = new Set(prev)
+                                          region.locations.forEach(loc => newSet.add(loc))
+                                          return Array.from(newSet)
+                                        })
+                                      }
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="w-4 h-4 border-gray-300 rounded focus:ring-2 cursor-pointer"
+                                    style={{ accentColor: '#009cd9' }}
+                                  />
+                                  <div className="text-[11px] font-semibold text-gray-600">
+                                    {region.name}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Locations in Region */}
+                              {locationsWithData.map(loc => {
+                                const data = locationBreakdown[r.role][loc]
+                                if (!data) return null
+                                const isLocationSelected = (
+                                  selectedRole === r.role &&
+                                  ((typeof selectedLocationForRole === 'string' && selectedLocationForRole === loc) ||
+                                   (Array.isArray(selectedLocationForRole) && selectedLocationForRole.includes(loc)))
+                                )
+                                const isChecked = selectedLocations.includes(loc)
+                                return (
+                                  <div
+                                    key={loc}
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setSelectedRole(r.role)
+                                      setSelectedJobs([r.role])
+                                      setSelectedLocationForRole(isLocationSelected ? null : loc)
+                                    }}
+                                    className={`py-2 flex items-center gap-2 cursor-pointer hover:bg-gray-100 transition ${isCompleteRegion ? 'pl-8 pr-3' : 'px-3'}`}
+                                    style={isLocationSelected ? { backgroundColor: '#e0f5fc', borderLeft: '4px solid #009cd9', paddingLeft: isCompleteRegion ? '28px' : '8px' } : {}}
+                                  >
+                                    {/* Checkbox for individual location selection */}
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={(e) => {
+                                        e.stopPropagation()
+                                        toggleLocationSelection(loc)
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="w-4 h-4 border-gray-300 rounded focus:ring-2 cursor-pointer"
+                                      style={{ accentColor: '#009cd9' }}
+                                    />
+                                    <div className="text-sm font-medium flex-1">{getLocationName(loc)}</div>
+                                    <div className="h-2 w-20 rounded flex overflow-hidden">
+                                      <div className="h-2" style={{ width: `${data.good}%`, background: '#8ace00' }} />
+                                      <div className="h-2" style={{ width: `${data.ok}%`, background: '#6c6c6c' }} />
+                                      <div className="h-2" style={{ width: `${data.bad}%`, background: '#d20011' }} />
+                                    </div>
+                                  </div>
+                                )
+                              })}
                             </div>
                           )
                         })}
@@ -1121,28 +1231,28 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
 
                   {/* Before/Target Visualization with Info */}
                   <div className="flex gap-4">
-                    {/* Vertical Bars */}
-                    <div className="flex items-end gap-3">
+                    {/* Horizontal Bars */}
+                    <div className="flex flex-col gap-3">
                       {/* Before Bar */}
-                      <div className="text-center">
+                      <div>
                         <div className="text-xs text-gray-600 mb-1">Before</div>
-                        <div className="w-12 h-24 rounded flex flex-col overflow-hidden shadow">
-                          <div className="w-full" style={{ height: '40%', background: '#8ace00' }} />
-                          <div className="w-full" style={{ height: '35%', background: '#9ca3af' }} />
-                          <div className="w-full" style={{ height: '25%', background: '#d20011' }} />
+                        <div className="flex h-6 rounded overflow-hidden shadow">
+                          <div className="flex items-center justify-center px-2 text-white text-xs font-medium" style={{ width: '40%', background: '#8ace00' }}>40</div>
+                          <div className="flex items-center justify-center px-2 text-white text-xs font-medium" style={{ width: '35%', background: '#9ca3af' }}>35</div>
+                          <div className="flex items-center justify-center px-2 text-white text-xs font-medium" style={{ width: '25%', background: '#d20011' }}>25</div>
                         </div>
                       </div>
 
                       {/* Arrow */}
-                      <div className="text-2xl text-gray-400 pb-8">→</div>
+                      <div className="text-center text-gray-400">↓</div>
 
                       {/* Target Bar */}
-                      <div className="text-center">
+                      <div>
                         <div className="text-xs text-gray-600 mb-1">Target</div>
-                        <div className="w-12 h-24 rounded flex flex-col overflow-hidden shadow">
-                          <div className="w-full" style={{ height: '70%', background: '#8ace00' }} />
-                          <div className="w-full" style={{ height: '25%', background: '#9ca3af' }} />
-                          <div className="w-full" style={{ height: '5%', background: '#d20011' }} />
+                        <div className="flex h-6 rounded overflow-hidden shadow">
+                          <div className="flex items-center justify-center px-2 text-white text-xs font-medium" style={{ width: '70%', background: '#8ace00' }}>70</div>
+                          <div className="flex items-center justify-center px-2 text-white text-xs font-medium" style={{ width: '25%', background: '#9ca3af' }}>25</div>
+                          <div className="flex items-center justify-center px-2 text-white text-xs font-medium" style={{ width: '5%', background: '#d20011' }}>5</div>
                         </div>
                       </div>
                     </div>
@@ -1168,7 +1278,7 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                         </div>
                         <div>
                           <span className="text-gray-500">Locations:</span>
-                          <span className="ml-1 font-medium">{selectedCampaign.locations.join(', ')}</span>
+                          <span className="ml-1 font-medium">{formatLocations(selectedCampaign.locations)}</span>
                         </div>
                         <div className="col-span-2">
                           <span className="text-gray-500">Jobs:</span>
@@ -1251,7 +1361,7 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
               {/* Campaign Builder - shown when selecting time slots */}
               {selectedSlots.size > 0 && !selectedCampaign && (
                 <div className="mt-4 bg-white border rounded-xl p-4">
-                  <div className="text-sm font-semibold mb-3">Campaign Preview</div>
+                  <div className="text-sm font-semibold mb-3">Job Posting Preview</div>
 
                   <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
                     <div className="space-y-2 text-xs">
@@ -1262,7 +1372,7 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                       <div>
                         <span className="text-gray-500">Locations:</span>
                         <span className="ml-1 font-medium">
-                          {selectedLocations.length > 0 ? selectedLocations.join(', ') : 'None selected'}
+                          {selectedLocations.length > 0 ? formatLocations(selectedLocations) : 'None selected'}
                         </span>
                       </div>
                       <div>
