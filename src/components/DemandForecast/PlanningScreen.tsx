@@ -643,6 +643,10 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                         setSelectedJobs([r.role])
                         setExpandedRole(isExpanded ? null : r.role)
                         if (!isExpanded) {
+                          // Auto-select first location when expanding a role
+                          const firstLocation = availableLocations.find(loc => locationBreakdown[r.role]?.[loc])
+                          setSelectedLocationForRole(firstLocation || null)
+                        } else {
                           setSelectedLocationForRole(null)
                         }
                       }}
@@ -953,9 +957,9 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                   }
                 });
 
-                // Sort by severity and take top 4
+                // Sort by severity and take top 3 (we'll add "All Times" separately)
                 mergedSuggestions.sort((a, b) => b.severity - a.severity);
-                const topSuggestions = mergedSuggestions.slice(0, 4);
+                const topSuggestions = mergedSuggestions.slice(0, 3);
 
                 // Update labels for merged ranges
                 topSuggestions.forEach(sug => {
@@ -971,44 +975,102 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                   }
                 });
 
-                return topSuggestions.length > 0 ? (
-                  <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                // Add "All Times" option
+                const allTimesSuggestion = {
+                  start: '08:00',
+                  end: '23:30',
+                  days: [0, 1, 2, 3, 4, 5, 6],
+                  label: 'All Times',
+                  slots: [[0,16,47],[1,16,47],[2,16,47],[3,16,47],[4,16,47],[5,16,47],[6,16,47]],
+                  severity: 0
+                };
+
+                // Helper to check if a suggestion is currently selected
+                const isSuggestionSelected = (suggestion: typeof topSuggestions[0]) => {
+                  return suggestion.slots.every(([day, startSlot, endSlot]) => {
+                    for (let slot = startSlot; slot <= endSlot; slot++) {
+                      if (!selectedSlots.has(`${day}-${slot}`)) return false;
+                    }
+                    return true;
+                  });
+                };
+
+                const handleSuggestionClick = (suggestion: typeof topSuggestions[0]) => {
+                  const isSelected = isSuggestionSelected(suggestion);
+                  const newSlots = new Set(selectedSlots);
+
+                  if (isSelected) {
+                    // Deselect: remove these slots
+                    suggestion.slots.forEach(([day, startSlot, endSlot]) => {
+                      for (let slot = startSlot; slot <= endSlot; slot++) {
+                        newSlots.delete(`${day}-${slot}`);
+                      }
+                    });
+                    // Remove from timeRanges
+                    setJobForms(prev => prev.map(f =>
+                      f.role === selectedRole
+                        ? { ...f, timeRanges: (f.timeRanges || []).filter(r =>
+                            r.start !== suggestion.start || r.end !== suggestion.end ||
+                            JSON.stringify(r.days) !== JSON.stringify(suggestion.days)
+                          )}
+                        : f
+                    ));
+                  } else {
+                    // Select: add these slots
+                    suggestion.slots.forEach(([day, startSlot, endSlot]) => {
+                      for (let slot = startSlot; slot <= endSlot; slot++) {
+                        newSlots.add(`${day}-${slot}`);
+                      }
+                    });
+                    // Add to timeRanges
+                    const currentJobForm = jobForms.find(f => f.role === selectedRole);
+                    const existingRanges = currentJobForm?.timeRanges || [];
+                    const newRange = { start: suggestion.start, end: suggestion.end, days: suggestion.days };
+                    setJobForms(prev => prev.map(f =>
+                      f.role === selectedRole
+                        ? { ...f, timeRanges: [...existingRanges, newRange] }
+                        : f
+                    ));
+                  }
+                  setSelectedSlots(newSlots);
+                };
+
+                return (
+                  <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
                     <div className="text-xs font-semibold text-gray-700 mb-2">
-                      Suggested Priority Time Ranges (Based on High Demand):
+                      {topSuggestions.length > 0 ? 'Suggested Priority Time Ranges (Based on High Demand):' : 'Quick Time Range Selection:'}
                     </div>
                     <div className="flex flex-wrap gap-2">
+                      {/* All Times - neutral default button */}
+                      <button
+                        onClick={() => handleSuggestionClick(allTimesSuggestion)}
+                        className={`px-3 py-1 border rounded text-xs font-medium transition ${
+                          isSuggestionSelected(allTimesSuggestion)
+                            ? 'bg-gray-700 border-gray-700 text-white'
+                            : 'bg-white border-gray-300 hover:bg-gray-100'
+                        }`}
+                      >
+                        <div className="font-semibold">All Times</div>
+                        <div className="text-[10px] opacity-75">08:00 - 23:30</div>
+                      </button>
+                      {/* Data-driven suggestions */}
                       {topSuggestions.map((suggestion, idx) => (
                         <button
                           key={idx}
-                          onClick={() => {
-                            // Add these slots to selectedSlots
-                            const newSlots = new Set(selectedSlots);
-                            suggestion.slots.forEach(([day, startSlot, endSlot]) => {
-                              for (let slot = startSlot; slot <= endSlot; slot++) {
-                                newSlots.add(`${day}-${slot}`);
-                              }
-                            });
-                            setSelectedSlots(newSlots);
-
-                            // Also update the timeRanges for the job form
-                            const currentJobForm = jobForms.find(f => f.role === selectedRole);
-                            const existingRanges = currentJobForm?.timeRanges || [];
-                            const newRange = { start: suggestion.start, end: suggestion.end, days: suggestion.days };
-                            setJobForms(prev => prev.map(f =>
-                              f.role === selectedRole
-                                ? { ...f, timeRanges: [...existingRanges, newRange] }
-                                : f
-                            ));
-                          }}
-                          className="px-3 py-1 bg-white border border-red-300 rounded text-xs font-medium hover:bg-red-100 transition"
+                          onClick={() => handleSuggestionClick(suggestion)}
+                          className={`px-3 py-1 border rounded text-xs font-medium transition ${
+                            isSuggestionSelected(suggestion)
+                              ? 'bg-red-600 border-red-600 text-white'
+                              : 'bg-white border-red-300 text-red-700 hover:bg-red-100'
+                          }`}
                         >
-                          <div className="font-semibold text-red-700">{suggestion.start} - {suggestion.end}</div>
-                          <div className="text-[10px] text-red-600">{suggestion.label}</div>
+                          <div className="font-semibold">{suggestion.start} - {suggestion.end}</div>
+                          <div className="text-[10px] opacity-75">{suggestion.label}</div>
                         </button>
                       ))}
                     </div>
                   </div>
-                ) : null;
+                );
               })()}
 
               {/* Views */}
