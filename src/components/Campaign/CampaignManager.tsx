@@ -482,7 +482,7 @@ export default function CampaignManager({ selectedLocations: _selectedLocations,
                     }}
                     className="px-4 py-2 rounded-lg font-medium text-sm transition bg-blue-600 hover:bg-blue-700 text-white"
                   >
-                    Copy as New Campaign
+                    Restart as New Campaign
                   </button>
                 )}
                 <div className="flex-1"></div>
