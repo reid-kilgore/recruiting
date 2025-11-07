@@ -184,7 +184,7 @@ interface Campaign {
   id: string;
   name: string;
   createdAt: string;
-  status: 'active' | 'suspended' | 'draft';
+  status: 'active' | 'suspended' | 'draft' | 'archived';
   locations: string[];
   jobs: string[];
   startDate: string;
@@ -211,7 +211,7 @@ interface PlanningScreenProps {
   setJobForms: React.Dispatch<React.SetStateAction<JobFormData[]>>;
   onStartHiring?: () => void;
   campaigns: Campaign[];
-  onUpdateCampaignStatus: (campaignId: string, newStatus: 'active' | 'suspended' | 'draft') => void;
+  onUpdateCampaignStatus: (campaignId: string, newStatus: 'active' | 'suspended' | 'draft' | 'archived') => void;
   onAddJobToCampaign: (campaignId: string, jobRole: string, timeRanges: TimeRange[]) => void;
   onCreateCampaign: (
     name: string,
@@ -498,7 +498,7 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                   </button>
 
                   <div className="bg-white border rounded-xl p-4">
-                    <div className="text-sm font-semibold mb-3">Campaign Summary</div>
+                    <div className="text-sm font-semibold mb-3">Posting Summary</div>
                     <div className="space-y-3 text-xs">
                       <div>
                         <span className="text-gray-500">Job:</span>

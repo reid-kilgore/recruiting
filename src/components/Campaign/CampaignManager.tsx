@@ -57,7 +57,7 @@ interface Campaign {
   name: string;
   createdAt: string;
   sources: Source[];
-  status: 'active' | 'suspended' | 'draft';
+  status: 'active' | 'suspended' | 'draft' | 'archived';
   locations: string[];
   jobs: string[];
   startDate: string;

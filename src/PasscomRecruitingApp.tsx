@@ -24,7 +24,7 @@ interface Campaign {
   id: string;
   name: string;
   createdAt: string;
-  status: 'active' | 'suspended' | 'draft';
+  status: 'active' | 'suspended' | 'draft' | 'archived';
   locations: string[];
   jobs: string[];
   startDate: string;
@@ -82,7 +82,7 @@ export default function PasscomRecruitingApp() {
   const [campaigns, setCampaigns] = useState<Campaign[]>(INITIAL_CAMPAIGNS);
 
   // Campaign management functions
-  const updateCampaignStatus = (campaignId: string, newStatus: 'active' | 'suspended' | 'draft') => {
+  const updateCampaignStatus = (campaignId: string, newStatus: 'active' | 'suspended' | 'draft' | 'archived') => {
     setCampaigns(prev => prev.map(c =>
       c.id === campaignId ? { ...c, status: newStatus } : c
     ));

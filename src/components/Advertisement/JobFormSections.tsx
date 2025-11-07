@@ -57,7 +57,7 @@ interface TimeRange {
 interface Campaign {
   id: string;
   name: string;
-  status: 'active' | 'suspended' | 'draft';
+  status: 'active' | 'suspended' | 'draft' | 'archived';
   locations: string[];
   jobs: string[];
 }
@@ -231,9 +231,12 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
             <div className="col-span-12 grid grid-cols-2 gap-4">
               {/* Left: Job Description */}
               <Field span="col-span-1" label="Job Description">
+                <div className="mb-2 px-2 py-1 rounded text-xs" style={{ backgroundColor: '#c0a1dd', color: '#fff' }}>
+                  Imported from {_jobRole} Settings
+                </div>
                 <Textarea
                   placeholder="Describe duties and environment…"
-                  rows={8}
+                  rows={4}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                 />
@@ -302,7 +305,7 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
                 value={payExact}
                 onChange={(e) => setPayExact(e.target.value)}
                 disabled={payOption !== "exact"}
-                className={payOption !== "exact" ? "opacity-50" : ""}
+                className={`max-w-[120px] ${payOption !== "exact" ? "opacity-50" : ""}`}
               />
             </Field>
 
@@ -427,6 +430,18 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
                           />
                           <button onClick={() => addChoice(q.id)} className="px-2 h-8 bg-blue-600 text-white rounded text-xs">Add</button>
                         </div>
+                      </div>
+                    )}
+                    {idx === 0 && (
+                      <div className="flex items-center gap-1 text-xs mt-2" style={{ color: '#6c6c6c' }}>
+                        <span>★</span>
+                        <span>This question is highly predictive of Employee Satisfaction</span>
+                      </div>
+                    )}
+                    {idx === 1 && (
+                      <div className="flex items-center gap-1 text-xs mt-2" style={{ color: '#6c6c6c' }}>
+                        <span>★</span>
+                        <span>This question is highly predictive of retention</span>
                       </div>
                     )}
                   </div>
