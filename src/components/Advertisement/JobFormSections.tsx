@@ -217,7 +217,7 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
       {/* Section Tabs */}
       <div className="border-b">
         <div className="flex gap-1 items-center justify-between">
-          <div className="flex gap-1">
+          <div className="flex gap-1 items-center">
             {sections.map(section => (
               <button
                 key={section.id}
@@ -231,6 +231,33 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
                 {section.label}
               </button>
             ))}
+            {activeSection === 'preview' && (
+              <>
+                <div className="border-l border-gray-300 h-8 mx-2"></div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setPreviewDevice('desktop')}
+                    className={`px-4 py-2 rounded-lg font-medium text-sm transition ${
+                      previewDevice === 'desktop'
+                        ? 'bg-gray-900 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Desktop
+                  </button>
+                  <button
+                    onClick={() => setPreviewDevice('mobile')}
+                    className={`px-4 py-2 rounded-lg font-medium text-sm transition ${
+                      previewDevice === 'mobile'
+                        ? 'bg-gray-900 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    Mobile
+                  </button>
+                </div>
+              </>
+            )}
           </div>
           {!isLastSection && (
             <button
@@ -534,37 +561,11 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
         )}
 
         {activeSection === 'preview' && (
-          <div>
-            {/* Device Toggle */}
-            <div className="flex gap-2 mb-4">
-              <button
-                onClick={() => setPreviewDevice('desktop')}
-                className={`px-4 py-2 rounded-lg font-medium text-sm transition ${
-                  previewDevice === 'desktop'
-                    ? 'bg-gray-900 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Desktop
-              </button>
-              <button
-                onClick={() => setPreviewDevice('mobile')}
-                className={`px-4 py-2 rounded-lg font-medium text-sm transition ${
-                  previewDevice === 'mobile'
-                    ? 'bg-gray-900 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Mobile
-              </button>
-            </div>
-
-            {/* Preview Container */}
-            <div className="flex justify-center">
-              <div
-                className="bg-white border rounded-xl p-6 shadow-sm transition-all"
-                style={previewDevice === 'mobile' ? { maxWidth: '375px', width: '100%' } : {}}
-              >
+          <div className="flex justify-center">
+            <div
+              className="bg-white border rounded-xl p-6 shadow-sm transition-all"
+              style={previewDevice === 'mobile' ? { maxWidth: '375px', width: '100%' } : {}}
+            >
             {/* Header */}
             <div className="border-b pb-4 mb-4">
               <div className="flex items-start justify-between">
@@ -661,7 +662,6 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
                 ))}
               </div>
             </div>
-              </div>
             </div>
           </div>
         )}
