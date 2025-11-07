@@ -1,5 +1,6 @@
 
-import { useMemo, useState, useRef, useEffect } from "react"
+import { useMemo, useState, useEffect } from "react"
+import JobFormSections from "../Advertisement/JobFormSections"
 
 // Planning Wireframe V3.2 — fixes stray brace and restores WeekGrid separation.
 // - Header: Location + KPIs only
@@ -18,7 +19,7 @@ const HALF_HOUR_SLOTS = ALL_HALF_HOUR_SLOTS.filter(slot => slot.index >= 16) // 
 
 const COLORS = {
   green: "#10b981",
-  yellow: "#fde047",
+  yellow: "#9ca3af", // Changed to grey for "ok"
   red: "#ef4444",
   closed: "#e5e7eb",
   g20: "#047857",
@@ -39,13 +40,10 @@ function classifyDelta(delta: number) {
 function cellColor(demand: number, supply: number) {
   if (demand <= 0 && supply <= 0) return COLORS.closed // closed / no demand
   const delta = (supply - Math.max(0, demand)) / Math.max(1, demand)
-  if (delta >= 0.3) return COLORS.g30
-  if (delta >= 0.2) return COLORS.g20
-  if (delta >= 0.1) return COLORS.green
-  if (delta <= -0.3) return COLORS.r30
-  if (delta <= -0.2) return COLORS.r20
-  if (delta <= -0.1) return COLORS.red
-  return COLORS.yellow
+  // Simplified to only good/ok/bad colors
+  if (delta >= 0.05) return COLORS.green // good: 5%+ over
+  if (delta <= -0.05) return COLORS.red // bad: 5%+ under
+  return COLORS.yellow // ok: within ±5%
 }
 
 function isOpen(dayIdx: number, hour: number) {
@@ -59,8 +57,82 @@ function noise(seed: number, d: number, s: number) {
   return (x - Math.floor(x)) * 2 - 1
 }
 
-function genWeek(role: string, weekOffset = 0) {
+function genWeek(role: string | null, weekOffset = 0, location?: string) {
+  // If no role, generate aggregate across all roles
+  if (!role) {
+    const allRoles = ['Cook', 'Server', 'Bartender', 'Host']
+    const allData = allRoles.map(r => genWeek(r, weekOffset, location))
+
+    // Aggregate by summing demand and supply
+    return Array.from({ length: 7 }, (_, d) => (
+      Array.from({ length: 48 }, (_, s) => {
+        let totalDemand = 0
+        let totalSupply = 0
+        let anyClosed = true
+
+        allData.forEach(roleData => {
+          const cell = roleData[d][s]
+          if (!cell.closed) {
+            anyClosed = false
+            totalDemand += cell.demand
+            totalSupply += cell.supply
+          }
+        })
+
+        return {
+          demand: totalDemand,
+          supply: totalSupply,
+          closed: anyClosed
+        }
+      })
+    ))
+  }
+
   const base = role === "Cook" ? 10 : role === "Server" ? 8 : role === "Bartender" ? 5 : 4
+
+  // Location-specific adjustment to match locationBreakdown percentages
+  // We'll adjust supply relative to demand to create the right good/ok/bad distribution
+  let supplyFactor = 0.86 // Default factor
+
+  if (location) {
+    // Location breakdown mapping to supply factors
+    // Good cells need delta >= 0.05, Ok needs -0.05 < delta < 0.05, Bad needs delta <= -0.05
+    const locationData: Record<string, Record<string, { good: number; ok: number; bad: number }>> = {
+      'Cook': {
+        'BOS': { good: 50, ok: 30, bad: 20 },
+        'LGA': { good: 35, ok: 40, bad: 25 },
+        'DCA': { good: 60, ok: 25, bad: 15 },
+        'ORD': { good: 40, ok: 35, bad: 25 }
+      },
+      'Server': {
+        'BOS': { good: 55, ok: 30, bad: 15 },
+        'LGA': { good: 45, ok: 35, bad: 20 },
+        'DCA': { good: 50, ok: 35, bad: 15 },
+        'ORD': { good: 35, ok: 40, bad: 25 }
+      },
+      'Bartender': {
+        'BOS': { good: 40, ok: 35, bad: 25 },
+        'LGA': { good: 30, ok: 40, bad: 30 },
+        'DCA': { good: 55, ok: 30, bad: 15 },
+        'ORD': { good: 45, ok: 30, bad: 25 }
+      },
+      'Host': {
+        'BOS': { good: 60, ok: 25, bad: 15 },
+        'LGA': { good: 50, ok: 35, bad: 15 },
+        'DCA': { good: 45, ok: 35, bad: 20 },
+        'ORD': { good: 55, ok: 30, bad: 15 }
+      }
+    }
+
+    const breakdown = locationData[role]?.[location]
+    if (breakdown) {
+      // Adjust supply factor based on good percentage
+      // Higher good% means better supply, lower good% means worse supply
+      // Target: 50% good = 1.0, 60% good = 1.1, 40% good = 0.9, etc.
+      supplyFactor = 0.65 + (breakdown.good / 100) * 0.5
+    }
+  }
+
   return Array.from({ length: 7 }, (_, d) => (
     Array.from({ length: 48 }, (_, s) => {
       const hour = Math.floor(s / 2)
@@ -71,7 +143,8 @@ function genWeek(role: string, weekOffset = 0) {
       const weekend = (d >= 5 ? 1.25 : 1.0)
       const phase = 1 + 0.03 * Math.sin((weekOffset * 7 + d + s / 48) * 0.9)
       const demand = Math.round(base * phase * (0.25 + 1.2 * (0.7 * lunch + 1.0 * dinner)) * weekend)
-      const supply = Math.max(0, Math.round(demand * (0.86 + (d % 3) * 0.03) + noise(weekOffset, d, s)))
+      // Apply location-specific supply factor
+      const supply = Math.max(0, Math.round(demand * (supplyFactor + (d % 3) * 0.03) + noise(weekOffset, d, s)))
       return { demand, supply, closed: false }
     })
   ))
@@ -137,24 +210,28 @@ interface PlanningScreenProps {
   jobForms: JobFormData[];
   setJobForms: React.Dispatch<React.SetStateAction<JobFormData[]>>;
   onStartHiring?: () => void;
+  campaigns: Campaign[];
+  onUpdateCampaignStatus: (campaignId: string, newStatus: 'active' | 'suspended' | 'draft') => void;
+  onAddJobToCampaign: (campaignId: string, jobRole: string, timeRanges: TimeRange[]) => void;
+  onCreateCampaign: (
+    name: string,
+    jobRole: string,
+    locations: string[],
+    timeRanges: TimeRange[],
+    startDate: string,
+    endMode: 'date' | 'budget' | 'hires',
+    endDate?: string,
+    endBudget?: number,
+    endHires?: number
+  ) => string;
 }
-
-const CAMPAIGNS: Campaign[] = [
-  { id:'c7', name:'Summer Hiring Blitz', createdAt:'2025-11-01', status: 'active', locations: ['BOS', 'LGA'], jobs: ['Server', 'Host'], startDate: '2025-11-01', endDate: '2025-12-15', endMode: 'date', timeRanges: [{ start: '11:00', end: '14:00', days: [4, 5, 6] }, { start: '17:00', end: '22:00', days: [4, 5, 6] }] },
-  { id:'c6', name:'Q4 Expansion', createdAt:'2025-10-25', status: 'suspended', locations: ['DCA'], jobs: ['Cook', 'Server'], startDate: '2025-10-25', endBudget: 5000, endMode: 'budget', timeRanges: [{ start: '10:00', end: '16:00', days: [0, 1, 2, 3, 4] }] },
-  { id:'c5', name:'Weekend Warriors', createdAt:'2025-10-18', status: 'active', locations: ['BOS'], jobs: ['Bartender', 'Server'], startDate: '2025-10-18', endHires: 15, endMode: 'hires', timeRanges: [{ start: '18:00', end: '23:00', days: [5, 6] }] },
-  { id:'c4', name:'New Menu Launch', createdAt:'2025-10-15', status: 'active', locations: ['LGA', 'DCA'], jobs: ['Cook'], startDate: '2025-10-15', endDate: '2025-11-30', endMode: 'date', timeRanges: [{ start: '11:00', end: '15:00', days: [0, 1, 2] }] },
-  { id:'c3', name:'New Location Opening', createdAt:'2025-10-14', status: 'active', locations: ['ORD'], jobs: ['Cook', 'Server', 'Host'], startDate: '2025-10-14', endDate: '2025-12-01', endMode: 'date', timeRanges: [{ start: '10:00', end: '15:00', days: [0, 1, 2] }, { start: '17:00', end: '21:00', days: [4, 5, 6] }] },
-  { id:'c2', name:'Weekend Staffing', createdAt:'2025-09-28', status: 'suspended', locations: ['BOS', 'LGA'], jobs: ['Server'], startDate: '2025-09-28', endBudget: 3000, endMode: 'budget', timeRanges: [{ start: '17:00', end: '23:00', days: [5, 6] }] },
-  { id:'c1', name:'Holiday Surge', createdAt:'2025-08-31', status: 'active', locations: ['BOS'], jobs: ['Cook', 'Server', 'Bartender'], startDate: '2025-08-31', endDate: '2025-12-25', endMode: 'date', timeRanges: [{ start: '11:00', end: '21:00', days: [6] }] },
-];
 
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr);
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelectedJobs, selectedLocations, setSelectedLocations, jobForms, setJobForms, onStartHiring }: PlanningScreenProps) {
+export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelectedJobs, selectedLocations, setSelectedLocations, jobForms, setJobForms, onStartHiring, campaigns, onUpdateCampaignStatus, onAddJobToCampaign, onCreateCampaign }: PlanningScreenProps) {
   const availableLocations = ['BOS', 'LGA', 'DCA', 'ORD']
   const roles = [
     { role: "Cook", demand: 10, supply: 7 },
@@ -162,34 +239,48 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
     { role: "Bartender", demand: 5, supply: 3 },
     { role: "Host", demand: 4, supply: 5 }
   ]
-  const [campaigns] = useState(CAMPAIGNS)
-  const [selectedRole, setSelectedRole] = useState(roles[0].role)
+  const [selectedRole, setSelectedRole] = useState<string | null>(null)
+  const [expandedRole, setExpandedRole] = useState<string | null>(null)
+  const [selectedLocationForRole, setSelectedLocationForRole] = useState<string | null>(null)
   const [selectedSlots, setSelectedSlots] = useState<Set<string>>(new Set()) // Format: "day-slotIndex"
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [dragStartCell, setDragStartCell] = useState<{day: number, slot: number} | null>(null)
   const [viewMode, setViewMode] = useState<'week'|'month'|'year'>('week')
-  const [showLegend, setShowLegend] = useState(false)
   const [weekOffset, setWeekOffset] = useState(0)
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear())
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth()) // 0..11
   const [route, setRoute] = useState<Route>('plan')
-  const [showLocationDropdown, setShowLocationDropdown] = useState(false)
   const [showCampaignOverlay, setShowCampaignOverlay] = useState(true)
-  const locationDropdownRef = useRef<HTMLDivElement>(null)
+  const [isBuildingCampaign, setIsBuildingCampaign] = useState(false)
 
-  // Close location dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (locationDropdownRef.current && !locationDropdownRef.current.contains(event.target as Node)) {
-        setShowLocationDropdown(false)
-      }
+  // Location breakdown data for each role (mock data with variation)
+  const locationBreakdown: Record<string, Record<string, { good: number; ok: number; bad: number }>> = {
+    'Cook': {
+      'BOS': { good: 50, ok: 30, bad: 20 },
+      'LGA': { good: 35, ok: 40, bad: 25 },
+      'DCA': { good: 60, ok: 25, bad: 15 },
+      'ORD': { good: 40, ok: 35, bad: 25 }
+    },
+    'Server': {
+      'BOS': { good: 55, ok: 30, bad: 15 },
+      'LGA': { good: 45, ok: 35, bad: 20 },
+      'DCA': { good: 50, ok: 35, bad: 15 },
+      'ORD': { good: 35, ok: 40, bad: 25 }
+    },
+    'Bartender': {
+      'BOS': { good: 40, ok: 35, bad: 25 },
+      'LGA': { good: 30, ok: 40, bad: 30 },
+      'DCA': { good: 55, ok: 30, bad: 15 },
+      'ORD': { good: 45, ok: 30, bad: 25 }
+    },
+    'Host': {
+      'BOS': { good: 60, ok: 25, bad: 15 },
+      'LGA': { good: 50, ok: 35, bad: 15 },
+      'DCA': { good: 45, ok: 35, bad: 20 },
+      'ORD': { good: 55, ok: 30, bad: 15 }
     }
-    if (showLocationDropdown) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [showLocationDropdown])
+  }
 
   const toggleLocationSelection = (location: string) => {
     setSelectedLocations(
@@ -239,6 +330,8 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
   }
 
   const updateTimeRanges = (slots: Set<string>) => {
+    if (!selectedRole) return
+
     const timeRanges = convertSlotsToTimeRanges(slots)
     const currentJobForm = jobForms.find(f => f.role === selectedRole)
     if (currentJobForm) {
@@ -324,6 +417,11 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
 
   // Load selected slots when role changes
   useEffect(() => {
+    if (!selectedRole) {
+      setSelectedSlots(new Set())
+      return
+    }
+
     const currentJobForm = jobForms.find(f => f.role === selectedRole)
     if (currentJobForm?.timeRanges) {
       const slots = new Set<string>()
@@ -354,7 +452,7 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
     return () => document.removeEventListener('mouseup', handleMouseUp)
   }, [])
 
-  const weekMatrix = useMemo(() => genWeek(selectedRole, weekOffset), [selectedRole, weekOffset])
+  const weekMatrix = useMemo(() => genWeek(selectedRole, weekOffset, selectedLocationForRole || undefined), [selectedRole, weekOffset, selectedLocationForRole])
   const weekStart = useMemo(() => mondayOf(weekOffset), [weekOffset])
   const weekEnd = useMemo(() => addDays(weekStart, 6), [weekStart])
 
@@ -387,63 +485,141 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
       <div className="flex flex-1 overflow-hidden">
         {route === 'plan' ? (
           <>
-            {/* Left Panel: Roles list and Campaigns */}
+            {/* Left Panel: Roles list and Campaigns (collapsed in building mode) */}
             <div className="w-1/4 overflow-y-auto p-4 space-y-3">
-              {/* Start Hiring Button - always visible, disabled until time ranges exist */}
-              {onStartHiring && (
-                <button
-                  onClick={onStartHiring}
-                  disabled={!jobForms.some(job => job.timeRanges && job.timeRanges.length > 0)}
-                  className={`w-full px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                    jobForms.some(job => job.timeRanges && job.timeRanges.length > 0)
-                      ? 'bg-green-600 text-white hover:bg-green-700 cursor-pointer'
-                      : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  }`}
-                >
-                  Start Hiring
-                </button>
-              )}
-
-              {/* Location Selector */}
-              <div className="mb-3">
-                <div className="relative" ref={locationDropdownRef}>
+              {isBuildingCampaign ? (
+                /* Collapsed Sidebar - Building Mode */
+                <div className="space-y-3">
                   <button
-                    type="button"
-                    onClick={() => setShowLocationDropdown(!showLocationDropdown)}
-                    className="w-full border rounded px-3 py-2 text-sm bg-white text-left flex items-center justify-between hover:bg-gray-50"
+                    onClick={() => setIsBuildingCampaign(false)}
+                    className="w-full px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-300 transition"
                   >
-                    <span className="truncate">
-                      {selectedLocations.length === 0
-                        ? 'Select Locations...'
-                        : `Locations: ${selectedLocations.join(', ')}`}
-                    </span>
-                    <span className="ml-2">▼</span>
+                    ← Back to Planning
                   </button>
 
-                  {showLocationDropdown && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border rounded shadow-lg max-h-48 overflow-y-auto">
-                      {availableLocations.map((location) => (
-                        <label
-                          key={location}
-                          className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedLocations.includes(location)}
-                            onChange={() => toggleLocationSelection(location)}
-                            className="mr-2"
-                          />
-                          <span className="text-sm">{location}</span>
-                        </label>
-                      ))}
+                  <div className="bg-white border rounded-xl p-4">
+                    <div className="text-sm font-semibold mb-3">Campaign Summary</div>
+                    <div className="space-y-3 text-xs">
+                      <div>
+                        <span className="text-gray-500">Job:</span>
+                        <span className="ml-1 font-medium">{selectedRole}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Locations:</span>
+                        <span className="ml-1 font-medium">{selectedLocations.join(', ')}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Priority Time Ranges:</span>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {(() => {
+                            const currentJobForm = jobForms.find(f => f.role === selectedRole)
+                            const timeRanges = currentJobForm?.timeRanges || []
+                            return timeRanges.length > 0 ? (
+                              timeRanges.map((range, idx) => (
+                                <span key={idx} className="px-2 py-1 text-xs font-mono rounded" style={{ backgroundColor: '#e0f5fc', color: '#009cd9' }}>
+                                  {range.start} - {range.end}
+                                  {range.days && range.days.length > 0 && range.days.length < 7 && (
+                                    <span className="ml-1 text-[10px]">({range.days.map(d => ['M','T','W','Th','F','Sa','Su'][d]).join(',')})</span>
+                                  )}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="ml-1 font-medium text-gray-500">No time ranges selected</span>
+                            )
+                          })()}
+                        </div>
+                      </div>
+
+                      {/* Job Details Section */}
+                      {(() => {
+                        const currentJobForm = jobForms.find(f => f.role === selectedRole)
+                        const jobData = currentJobForm?.data || {}
+
+                        return (
+                          <>
+                            {jobData.description && (
+                              <div className="pt-2 border-t">
+                                <span className="text-gray-500">Description:</span>
+                                <p className="ml-1 text-gray-700 mt-1 line-clamp-3">{jobData.description}</p>
+                              </div>
+                            )}
+
+                            {jobData.skills && jobData.skills.length > 0 && (
+                              <div className={jobData.description ? '' : 'pt-2 border-t'}>
+                                <span className="text-gray-500">Skills:</span>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {jobData.skills.map((skill: string, idx: number) => (
+                                    <span key={idx} className="px-2 py-0.5 bg-blue-50 rounded text-xs" style={{ color: '#009cd9' }}>
+                                      {skill}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {jobData.pay && (
+                              <div>
+                                <span className="text-gray-500">Pay:</span>
+                                <span className="ml-1 font-medium">{jobData.pay}</span>
+                              </div>
+                            )}
+
+                            {jobData.benefits && jobData.benefits.length > 0 && (
+                              <div>
+                                <span className="text-gray-500">Benefits:</span>
+                                <div className="mt-1 flex flex-wrap gap-1">
+                                  {jobData.benefits.map((benefit: string, idx: number) => (
+                                    <span key={idx} className="px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs">
+                                      {benefit}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </>
+                        )
+                      })()}
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
+              ) : (
+                /* Full Sidebar - Planning Mode */
+                <>
+              {/* Start Hiring Button - always visible, disabled until conditions met */}
+              {onStartHiring && (() => {
+                const hasTimeRanges = jobForms.some(job => job.timeRanges && job.timeRanges.length > 0)
+                const hasRole = selectedRole !== null
+                const hasLocations = selectedLocations.length > 0
+                const canStart = hasTimeRanges && hasRole && hasLocations
+
+                let buttonText = 'Start Hiring'
+                if (!canStart) {
+                  if (!hasRole || !hasLocations) {
+                    buttonText = hasRole ? 'Select locations first' : 'Select a job first'
+                  } else if (!hasTimeRanges) {
+                    buttonText = 'Select hours to continue'
+                  }
+                }
+
+                return (
+                  <button
+                    onClick={() => setIsBuildingCampaign(true)}
+                    disabled={!canStart}
+                    className={`w-full px-4 py-2 rounded-lg text-sm font-semibold transition ${
+                      canStart
+                        ? 'bg-green-600 text-white hover:bg-green-700 cursor-pointer'
+                        : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    }`}
+                  >
+                    {buttonText}
+                  </button>
+                )
+              })()}
 
               {/* Roles Section */}
               {roles.map((r) => {
                 const isSelected = selectedRole === r.role
+                const isExpanded = expandedRole === r.role
                 // Calculate good/ok/bad percentages (mock values for now)
                 const goodPct = 45
                 const okPct = 35
@@ -451,26 +627,81 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                 return (
                   <div
                     key={r.role}
-                    onClick={() => {
-                      setSelectedRole(r.role)
-                      // Single select - clear all and add just this one
-                      setSelectedJobs([r.role])
-                    }}
-                    className={`border rounded p-3 cursor-pointer hover:shadow transition ${
-                      selectedRole === r.role ? 'ring-2 ring-blue-500' : ''
-                    } ${
+                    className={`border rounded overflow-hidden transition ${
                       isSelected ? 'bg-blue-50' : 'bg-white'
                     }`}
+                    style={selectedRole === r.role ? {
+                      borderColor: '#009cd9',
+                      boxShadow: '0 0 0 2px #009cd9'
+                    } : {}}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="font-medium">{r.role}</div>
+                    {/* Main role card */}
+                    <div
+                      onClick={() => {
+                        setSelectedRole(r.role)
+                        setSelectedJobs([r.role])
+                        setExpandedRole(isExpanded ? null : r.role)
+                        if (!isExpanded) {
+                          setSelectedLocationForRole(null)
+                        }
+                      }}
+                      className="p-3 cursor-pointer hover:shadow"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium">{r.role}</div>
+                        <div className="text-xs text-gray-500">{isExpanded ? '▼' : '▶'}</div>
+                      </div>
+                      {/* Three-color progress bar */}
+                      <div className="mt-2 h-2 w-full bg-gray-200 rounded flex overflow-hidden">
+                        <div className="h-2" style={{ width: `${goodPct}%`, background: '#8ace00' }} />
+                        <div className="h-2" style={{ width: `${okPct}%`, background: '#6c6c6c' }} />
+                        <div className="h-2" style={{ width: `${badPct}%`, background: '#d20011' }} />
+                      </div>
                     </div>
-                    {/* Three-color progress bar */}
-                    <div className="mt-2 h-2 w-full bg-gray-200 rounded flex overflow-hidden">
-                      <div className="h-2" style={{ width: `${goodPct}%`, background: '#8ace00' }} />
-                      <div className="h-2" style={{ width: `${okPct}%`, background: '#6c6c6c' }} />
-                      <div className="h-2" style={{ width: `${badPct}%`, background: '#6f004f' }} />
-                    </div>
+
+                    {/* Location breakdown (when expanded) */}
+                    {isExpanded && locationBreakdown[r.role] && (
+                      <div className="border-t bg-gray-50">
+                        {availableLocations.map(loc => {
+                          const data = locationBreakdown[r.role][loc]
+                          if (!data) return null
+                          const isLocationSelected = selectedLocationForRole === loc && selectedRole === r.role
+                          const isChecked = selectedLocations.includes(loc)
+                          return (
+                            <div
+                              key={loc}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedRole(r.role)
+                                setSelectedJobs([r.role])
+                                setSelectedLocationForRole(isLocationSelected ? null : loc)
+                              }}
+                              className={`px-3 py-2 flex items-center gap-2 cursor-pointer hover:bg-gray-100 transition`}
+                              style={isLocationSelected ? { backgroundColor: '#e0f5fc', borderLeft: '4px solid #009cd9', paddingLeft: '8px' } : {}}
+                            >
+                              {/* Checkbox for global location selection */}
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  e.stopPropagation()
+                                  toggleLocationSelection(loc)
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="w-4 h-4 border-gray-300 rounded focus:ring-2 cursor-pointer"
+                                style={{ accentColor: '#009cd9' }}
+                              />
+                              <div className="text-sm font-medium flex-1">{loc}</div>
+                              <div className="h-2 w-20 rounded flex overflow-hidden">
+                                <div className="h-2" style={{ width: `${data.good}%`, background: '#8ace00' }} />
+                                <div className="h-2" style={{ width: `${data.ok}%`, background: '#6c6c6c' }} />
+                                <div className="h-2" style={{ width: `${data.bad}%`, background: '#d20011' }} />
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -516,7 +747,39 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                             </span>
                           )}
                         </div>
-                        <div className="text-gray-600 text-[11px]">{rightText}</div>
+                        <div className="text-gray-600 text-[11px] mb-2">{rightText}</div>
+
+                        {/* Action Buttons */}
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Navigate to Campaign tab
+                              if (onStartHiring) {
+                                onStartHiring();
+                              }
+                            }}
+                            className="flex-1 px-2 py-1 text-xs rounded font-medium transition text-white"
+                            style={{ backgroundColor: '#009cd9' }}
+                          >
+                            View
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Toggle campaign status
+                              const newStatus = campaign.status === 'active' ? 'suspended' : 'active';
+                              onUpdateCampaignStatus(campaign.id, newStatus);
+                            }}
+                            className={`flex-1 px-2 py-1 text-xs rounded font-medium transition ${
+                              campaign.status === 'active'
+                                ? 'bg-orange-600 text-white hover:bg-orange-700'
+                                : 'bg-green-600 text-white hover:bg-green-700'
+                            }`}
+                          >
+                            {campaign.status === 'active' ? 'Suspend' : 'Launch'}
+                          </button>
+                        </div>
                       </div>
                     );
                   })}
@@ -527,13 +790,79 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                   )}
                 </div>
               </div>
+                </>
+              )}
             </div>
 
-            {/* Right Panel: Details + Heatmap */}
+            {/* Right Panel: Details + Heatmap OR Building Mode */}
             <div className="w-3/4 border-l bg-white p-4 flex flex-col overflow-hidden">
+              {isBuildingCampaign ? (
+                /* Building Mode */
+                <div className="flex-1 overflow-auto space-y-4">
+                  {/* Job Posting Form */}
+                  <JobFormSections
+                    jobRole={selectedRole || ''}
+                    timeRanges={jobForms.find(f => f.role === selectedRole)?.timeRanges || []}
+                    selectedLocations={selectedLocations}
+                    jobFormData={jobForms.find(f => f.role === selectedRole)?.data || {}}
+                    campaigns={campaigns}
+                    onAddJobToCampaign={(campaignId) => {
+                      if (selectedRole) {
+                        const timeRanges = jobForms.find(f => f.role === selectedRole)?.timeRanges || [];
+                        onAddJobToCampaign(campaignId, selectedRole, timeRanges);
+                      }
+                    }}
+                    onCreateCampaign={(name, startDate, endMode, endDate, endBudget, endHires) => {
+                      if (selectedRole) {
+                        const timeRanges = jobForms.find(f => f.role === selectedRole)?.timeRanges || [];
+                        const campaignId = onCreateCampaign(
+                          name,
+                          selectedRole,
+                          selectedLocations,
+                          timeRanges,
+                          startDate,
+                          endMode,
+                          endDate,
+                          endBudget,
+                          endHires
+                        );
+                        return campaignId;
+                      }
+                      return '';
+                    }}
+                    onUpdateJobData={(data) => {
+                      // Update job form data
+                      if (selectedRole) {
+                        setJobForms(prev => prev.map(f =>
+                          f.role === selectedRole ? { ...f, data: { ...f.data, ...data } } : f
+                        ))
+                      }
+                    }}
+                    onComplete={() => {
+                      // Mark job as completed
+                      if (selectedRole) {
+                        setJobForms(prev => prev.map(f =>
+                          f.role === selectedRole ? { ...f, completed: true } : f
+                        ))
+                      }
+                    }}
+                    onFinalize={(jobRole) => {
+                      // This will be handled by the buttons in JobFormSections
+                      console.log('Job posting ready for campaign:', jobRole)
+                    }}
+                    onNavigateToCampaign={() => {
+                      if (onStartHiring) {
+                        onStartHiring()
+                      }
+                    }}
+                  />
+                </div>
+              ) : (
+                /* Planning Mode Heatmap */
+                <>
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <h2 className="font-semibold text-lg">{selectedRole} — Coverage Heatmap</h2>
+                  <h2 className="font-semibold text-lg">{selectedRole || 'All Roles'} — Coverage Heatmap</h2>
                   {viewMode === 'week' && (
                     <div className="ml-2 flex items-center gap-1 text-sm">
                       <button onClick={()=>setWeekOffset(weekOffset-1)} className="border rounded px-2 py-0.5">◀</button>
@@ -560,28 +889,13 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                   <button onClick={()=>setViewMode('week')} className={`px-2 py-1 border rounded ${viewMode==='week'?'bg-gray-900 text-white':''}`}>Week</button>
                   <button onClick={()=>setViewMode('month')} className={`px-2 py-1 border rounded ${viewMode==='month'?'bg-gray-900 text-white':''}`}>Month</button>
                   <button onClick={()=>setViewMode('year')} className={`px-2 py-1 border rounded ${viewMode==='year'?'bg-gray-900 text-white':''}`}>Year</button>
-                  <button onClick={()=>setShowLegend(!showLegend)} className="ml-2 underline">Legend</button>
                   <button
                     onClick={()=>setShowCampaignOverlay(!showCampaignOverlay)}
                     className={`ml-2 px-2 py-1 border rounded text-xs ${showCampaignOverlay ? 'bg-purple-600 text-white' : 'bg-white'}`}
                   >
-                    {showCampaignOverlay ? 'Hide' : 'Show'} Campaign Times
-                  </button>
+                    {showCampaignOverlay ? 'Hide' : 'Show'} Campaign Targets </button>
                 </div>
               </div>
-
-              {showLegend && (
-                <div className="mb-2 p-2 border rounded bg-gray-50 text-xs flex flex-wrap gap-3">
-                  <span className="inline-flex items-center gap-1"><span className="inline-block w-4 h-3 rounded" style={{background:COLORS.g30}}/>30%+ over</span>
-                  <span className="inline-flex items-center gap-1"><span className="inline-block w-4 h-3 rounded" style={{background:COLORS.g20}}/>20% over</span>
-                  <span className="inline-flex items-center gap-1"><span className="inline-block w-4 h-3 rounded" style={{background:COLORS.green}}/>10% over</span>
-                  <span className="inline-flex items-center gap-1"><span className="inline-block w-4 h-3 rounded" style={{background:COLORS.yellow}}/>match</span>
-                  <span className="inline-flex items-center gap-1"><span className="inline-block w-4 h-3 rounded" style={{background:COLORS.red}}/>10% short</span>
-                  <span className="inline-flex items-center gap-1"><span className="inline-block w-4 h-3 rounded" style={{background:COLORS.r20}}/>20% short</span>
-                  <span className="inline-flex items-center gap-1"><span className="inline-block w-4 h-3 rounded" style={{background:COLORS.r30}}/>30%+ short</span>
-                  <span className="inline-flex items-center gap-1 text-gray-500"><span className="inline-block w-4 h-3 rounded" style={{background:COLORS.closed}}/>closed / no demand</span>
-                </div>
-              )}
 
               {/* Views */}
               <div className="flex-1 overflow-auto">
@@ -616,56 +930,132 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
               {/* Campaign Target Section - shown when a campaign is selected */}
               {selectedCampaign && (
                 <div className="mt-4 bg-white border rounded-xl p-4">
-                  <div className="text-sm font-semibold mb-3">Campaign Target: {selectedCampaign.name}</div>
-
-                  {/* Before/Target Visualization */}
-                  <div className="flex items-center gap-4 justify-center mb-4">
-                    {/* Before Bar */}
-                    <div className="text-center">
-                      <div className="text-xs text-gray-600 mb-1">Before</div>
-                      <div className="h-8 w-32 rounded flex overflow-hidden shadow">
-                        <div className="h-full" style={{ width: '40%', background: '#8ace00' }} />
-                        <div className="h-full" style={{ width: '35%', background: '#6c6c6c' }} />
-                        <div className="h-full" style={{ width: '25%', background: '#6f004f' }} />
-                      </div>
-                    </div>
-
-                    {/* Arrow */}
-                    <div className="text-2xl text-gray-400">→</div>
-
-                    {/* Target Bar */}
-                    <div className="text-center">
-                      <div className="text-xs text-gray-600 mb-1">Target</div>
-                      <div className="h-8 w-32 rounded flex overflow-hidden shadow">
-                        <div className="h-full" style={{ width: '70%', background: '#8ace00' }} />
-                        <div className="h-full" style={{ width: '25%', background: '#6c6c6c' }} />
-                        <div className="h-full" style={{ width: '5%', background: '#6f004f' }} />
-                      </div>
-                    </div>
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-sm font-semibold">Campaign Target</div>
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                      selectedCampaign.status === 'active' ? 'bg-green-100 text-green-700' :
+                      selectedCampaign.status === 'suspended' ? 'bg-gray-100 text-gray-600' :
+                      'text-white'
+                    }`}
+                    style={selectedCampaign.status === 'draft' ? { backgroundColor: '#009cd9' } : {}}>
+                      {selectedCampaign.status.toUpperCase()}
+                    </span>
                   </div>
 
-                  {/* Campaign Details */}
+                  {/* Before/Target Visualization with Info */}
+                  <div className="flex gap-4">
+                    {/* Vertical Bars */}
+                    <div className="flex items-end gap-3">
+                      {/* Before Bar */}
+                      <div className="text-center">
+                        <div className="text-xs text-gray-600 mb-1">Before</div>
+                        <div className="w-12 h-24 rounded flex flex-col overflow-hidden shadow">
+                          <div className="w-full" style={{ height: '40%', background: '#8ace00' }} />
+                          <div className="w-full" style={{ height: '35%', background: '#9ca3af' }} />
+                          <div className="w-full" style={{ height: '25%', background: '#d20011' }} />
+                        </div>
+                      </div>
+
+                      {/* Arrow */}
+                      <div className="text-2xl text-gray-400 pb-8">→</div>
+
+                      {/* Target Bar */}
+                      <div className="text-center">
+                        <div className="text-xs text-gray-600 mb-1">Target</div>
+                        <div className="w-12 h-24 rounded flex flex-col overflow-hidden shadow">
+                          <div className="w-full" style={{ height: '70%', background: '#8ace00' }} />
+                          <div className="w-full" style={{ height: '25%', background: '#9ca3af' }} />
+                          <div className="w-full" style={{ height: '5%', background: '#d20011' }} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Campaign Details */}
+                    <div className="flex-1 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="grid grid-cols-2 gap-2 text-xs mb-2">
+                        <div>
+                          <span className="text-gray-500">Campaign:</span>
+                          <span className="ml-1 font-medium">{selectedCampaign.name}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Start:</span>
+                          <span className="ml-1 font-medium">{formatDate(selectedCampaign.startDate)}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">End Goal:</span>
+                          <span className="ml-1 font-medium">
+                            {selectedCampaign.endMode === 'date' && selectedCampaign.endDate && formatDate(selectedCampaign.endDate)}
+                            {selectedCampaign.endMode === 'budget' && `$${selectedCampaign.endBudget?.toLocaleString()}`}
+                            {selectedCampaign.endMode === 'hires' && `${selectedCampaign.endHires} hires`}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Locations:</span>
+                          <span className="ml-1 font-medium">{selectedCampaign.locations.join(', ')}</span>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-gray-500">Jobs:</span>
+                          <span className="ml-1 font-medium">{selectedCampaign.jobs.join(', ')}</span>
+                        </div>
+                      </div>
+
+                      {/* Time Ranges */}
+                      {selectedCampaign.timeRanges && selectedCampaign.timeRanges.length > 0 && (
+                        <div className="border-t pt-2 mt-2">
+                          <div className="text-xs text-gray-500 mb-1">Time Ranges:</div>
+                          <div className="flex flex-wrap gap-1">
+                            {selectedCampaign.timeRanges.map((range, idx) => (
+                              <span key={idx} className="px-2 py-1 text-xs font-mono rounded" style={{ backgroundColor: '#e0f5fc', color: '#009cd9' }}>
+                                {range.start} - {range.end}
+                                {range.days && range.days.length > 0 && range.days.length < 7 && (
+                                  <span className="ml-1 text-[10px]">({range.days.map(d => ['M','T','W','Th','F','Sa','Su'][d]).join(',')})</span>
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Campaign Builder - shown when selecting time slots */}
+              {selectedSlots.size > 0 && !selectedCampaign && (
+                <div className="mt-4 bg-white border rounded-xl p-4">
+                  <div className="text-sm font-semibold mb-3">Campaign Preview</div>
+
                   <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
-                    <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="space-y-2 text-xs">
+                      <div>
+                        <span className="text-gray-500">Job:</span>
+                        <span className="ml-1 font-medium">{selectedRole || 'None selected'}</span>
+                      </div>
                       <div>
                         <span className="text-gray-500">Locations:</span>
-                        <span className="ml-1 font-medium">{selectedCampaign.locations.join(', ')}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Jobs:</span>
-                        <span className="ml-1 font-medium">{selectedCampaign.jobs.join(', ')}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Start:</span>
-                        <span className="ml-1 font-medium">{formatDate(selectedCampaign.startDate)}</span>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">End Goal:</span>
                         <span className="ml-1 font-medium">
-                          {selectedCampaign.endMode === 'date' && selectedCampaign.endDate && formatDate(selectedCampaign.endDate)}
-                          {selectedCampaign.endMode === 'budget' && `$${selectedCampaign.endBudget?.toLocaleString()}`}
-                          {selectedCampaign.endMode === 'hires' && `${selectedCampaign.endHires} hires`}
+                          {selectedLocations.length > 0 ? selectedLocations.join(', ') : 'None selected'}
                         </span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Time Ranges:</span>
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {(() => {
+                            const timeRanges = convertSlotsToTimeRanges(selectedSlots)
+                            return timeRanges.length > 0 ? (
+                              timeRanges.map((range, idx) => (
+                                <span key={idx} className="px-2 py-1 text-xs font-mono rounded" style={{ backgroundColor: '#e0f5fc', color: '#009cd9' }}>
+                                  {range.start} - {range.end}
+                                  {range.days && range.days.length > 0 && range.days.length < 7 && (
+                                    <span className="ml-1 text-[10px]">({range.days.map(d => ['M','T','W','Th','F','Sa','Su'][d]).join(',')})</span>
+                                  )}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="ml-1 font-medium text-gray-500">Selecting...</span>
+                            )
+                          })()}
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -673,6 +1063,8 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
               )}
 
               <TestPanel />
+                </>
+              )}
             </div>
           </>
         ) : (
@@ -709,6 +1101,36 @@ function WeekGrid({
   onCellMouseEnter: (day: number, slotIndex: number) => void
   showCampaignOverlay: boolean
 }) {
+  // Calculate merged selection rectangles for each day
+  const selectionRects: Array<{ day: number; startSlot: number; endSlot: number }> = []
+
+  for (let day = 0; day < 7; day++) {
+    const dayCells: number[] = []
+    selectedSlots.forEach(key => {
+      const [d, s] = key.split('-').map(Number)
+      if (d === day) dayCells.push(s)
+    })
+    dayCells.sort((a, b) => a - b)
+
+    // Merge consecutive slots
+    if (dayCells.length > 0) {
+      let rangeStart = dayCells[0]
+      let rangeEnd = dayCells[0]
+
+      for (let i = 1; i <= dayCells.length; i++) {
+        if (i < dayCells.length && dayCells[i] === rangeEnd + 1) {
+          rangeEnd = dayCells[i]
+        } else {
+          selectionRects.push({ day, startSlot: rangeStart, endSlot: rangeEnd })
+          if (i < dayCells.length) {
+            rangeStart = dayCells[i]
+            rangeEnd = dayCells[i]
+          }
+        }
+      }
+    }
+  }
+
   // Convert campaign time ranges to slot set (with day information)
   const campaignSlots = new Set<string>()
   if (selectedCampaign?.timeRanges) {
@@ -747,7 +1169,7 @@ function WeekGrid({
     }
   })
   return (
-    <div className="min-w-[720px]">
+    <div className="min-w-[720px] relative">
       {/* Column headers with 2px gaps between day columns */}
       <div className="grid" style={{ gridTemplateColumns: `60px repeat(7, 1fr)`, columnGap: '2px' }}>
         <div className="text-[10px] text-gray-500 p-1"></div>
@@ -756,7 +1178,7 @@ function WeekGrid({
         ))}
       </div>
       {/* Rows: 10px data row + 2px separator row per half-hour */}
-      <div className="max-h-[520px] overflow-auto">
+      <div className="max-h-[520px] overflow-auto relative">
         {HALF_HOUR_SLOTS.map((slot) => {
           const slotIndex = slot.index
           const hour = Math.floor(slotIndex / 2)
@@ -779,26 +1201,26 @@ function WeekGrid({
                   const { demand, supply, closed } = daySlots[slotIndex]
                   const bg = closed ? COLORS.closed : cellColor(demand, supply)
                   const cellKey = `${dayIdx}-${slotIndex}`
-                  const isSelected = selectedSlots.has(cellKey)
                   const isCampaignSlot = campaignSlots.has(cellKey)
                   const isFilteredCampaignSlot = filteredCampaignSlots.has(cellKey)
 
-                  // Use diagonal split if showCampaignOverlay is true and this is a campaign slot
+                  // Use diagonal split for both selected campaign and filtered campaigns
                   const showDiagonalSplit = showCampaignOverlay && isFilteredCampaignSlot
+                  const showCampaignDiagonalSplit = isCampaignSlot
 
                   return (
                     <div
                       key={cellKey}
                       title={`${slot.time} - D:${demand} S:${supply}${closed?' (closed)':''}`}
-                      className="cursor-pointer hover:opacity-80 relative"
+                      className="cursor-pointer hover:opacity-80"
                       onMouseDown={() => onCellMouseDown(dayIdx, slotIndex)}
                       onMouseEnter={() => onCellMouseEnter(dayIdx, slotIndex)}
                       style={{
                         height: '10px',
-                        background: isCampaignSlot ? '#a78bfa' : showDiagonalSplit ?
-                          `linear-gradient(135deg, ${bg} 0%, ${bg} 50%, #86efac 50%, #86efac 100%)` : bg,
-                        outline: isSelected ? '2px solid #3b82f6' : 'none',
-                        outlineOffset: '-2px'
+                        background: showCampaignDiagonalSplit ?
+                          `linear-gradient(45deg, ${bg} 0%, ${bg} 50%, #009cd9 50%, #009cd9 100%)` :
+                          showDiagonalSplit ?
+                          `linear-gradient(45deg, ${bg} 0%, ${bg} 50%, #86efac 50%, #86efac 100%)` : bg,
                       }}
                     />
                   )
@@ -812,6 +1234,36 @@ function WeekGrid({
                 ))}
               </div>
             </div>
+          )
+        })}
+
+        {/* Render merged selection rectangles as overlays */}
+        {selectionRects.map((rect, idx) => {
+          // Calculate position and size
+          // Each slot is 10px tall + 2px separator = 12px per slot
+          // Starting offset: first visible slot is index 16 (8am)
+          const startIdx = HALF_HOUR_SLOTS.findIndex(s => s.index === rect.startSlot)
+          const endIdx = HALF_HOUR_SLOTS.findIndex(s => s.index === rect.endSlot)
+          if (startIdx === -1 || endIdx === -1) return null
+
+          const top = startIdx * 12 // 12px per slot (10px cell + 2px separator)
+          const height = (endIdx - startIdx + 1) * 12 - 2 // -2 to not include bottom separator
+
+          return (
+            <div
+              key={`selection-${idx}`}
+              className="absolute pointer-events-none"
+              style={{
+                top: `${top}px`,
+                left: `calc(60px + ${rect.day} * (100% - 60px) / 7 + ${rect.day} * 2px)`,
+                width: `calc((100% - 60px) / 7)`,
+                height: `${height}px`,
+                border: '3px solid #009cd9',
+                borderRadius: '3px',
+                boxSizing: 'border-box',
+                zIndex: 10
+              }}
+            />
           )
         })}
       </div>

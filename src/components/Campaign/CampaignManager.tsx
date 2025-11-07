@@ -77,16 +77,6 @@ const DEFAULT_SOURCES: Source[] = [
   { key: 'qr_posters', enabled: false, dailyCap:  0, dailyBudget:   0, cpa:  0.00 },
 ];
 
-const CAMPAIGNS: Campaign[] = [
-  { id:'c7', name:'Summer Hiring Blitz', createdAt:'2025-11-01', sources: DEFAULT_SOURCES, status: 'active', locations: ['BOS', 'LGA'], jobs: ['Server', 'Host'], startDate: '2025-11-01', endDate: '2025-12-15', endMode: 'date', timeRanges: [{ start: '11:00', end: '14:00' }, { start: '17:00', end: '22:00' }] },
-  { id:'c6', name:'Q4 Expansion', createdAt:'2025-10-25', sources: DEFAULT_SOURCES, status: 'suspended', locations: ['DCA'], jobs: ['Cook', 'Server'], startDate: '2025-10-25', endBudget: 5000, endMode: 'budget', timeRanges: [{ start: '08:00', end: '16:00' }] },
-  { id:'c5', name:'Weekend Warriors', createdAt:'2025-10-18', sources: DEFAULT_SOURCES, status: 'active', locations: ['BOS'], jobs: ['Bartender', 'Server'], startDate: '2025-10-18', endHires: 15, endMode: 'hires', timeRanges: [{ start: '18:00', end: '23:00' }] },
-  { id:'c4', name:'New Menu Launch', createdAt:'2025-10-15', sources: DEFAULT_SOURCES, status: 'active', locations: ['LGA', 'DCA'], jobs: ['Cook'], startDate: '2025-10-15', endDate: '2025-11-30', endMode: 'date', timeRanges: [{ start: '09:00', end: '17:00' }] },
-  { id:'c3', name:'New Location Opening', createdAt:'2025-10-14', sources: DEFAULT_SOURCES, status: 'active', locations: ['ORD'], jobs: ['Cook', 'Server', 'Host'], startDate: '2025-10-14', endDate: '2025-12-01', endMode: 'date', timeRanges: [{ start: '10:00', end: '22:00' }] },
-  { id:'c2', name:'Weekend Staffing', createdAt:'2025-09-28', sources: DEFAULT_SOURCES, status: 'suspended', locations: ['BOS', 'LGA'], jobs: ['Server'], startDate: '2025-09-28', endBudget: 3000, endMode: 'budget', timeRanges: [{ start: '17:00', end: '23:00' }] },
-  { id:'c1', name:'Holiday Surge', createdAt:'2025-08-31', sources: DEFAULT_SOURCES, status: 'active', locations: ['BOS'], jobs: ['Cook', 'Server', 'Bartender'], startDate: '2025-08-31', endDate: '2025-12-25', endMode: 'date', timeRanges: [{ start: '11:00', end: '15:00' }, { start: '17:00', end: '21:00' }] },
-];
-
 const applicantsPerDay = (s: Source) => {
   if (!s.enabled || s.cpa <= 0 || s.dailyBudget <= 0) return 0;
   const est = s.dailyBudget / s.cpa;
@@ -111,12 +101,24 @@ interface CampaignManagerProps {
   advertisements: Advertisement[];
   openNewCampaignModal: boolean;
   setOpenNewCampaignModal: (open: boolean) => void;
+  campaigns: Campaign[];
+  onUpdateCampaigns: (campaigns: Campaign[]) => void;
 }
 
-export default function CampaignManager({ selectedLocations: _selectedLocations, setSelectedLocations, selectedJobs: _selectedJobs, setSelectedJobs, advertisements, openNewCampaignModal, setOpenNewCampaignModal }: CampaignManagerProps){
-  const [campaigns, setCampaigns] = useState(
-    [...CAMPAIGNS].sort((a,b)=> new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-  );
+export default function CampaignManager({ selectedLocations: _selectedLocations, setSelectedLocations, selectedJobs: _selectedJobs, setSelectedJobs, advertisements, openNewCampaignModal, setOpenNewCampaignModal, campaigns: campaignsFromParent, onUpdateCampaigns }: CampaignManagerProps){
+  // Ensure all campaigns have sources data, add DEFAULT_SOURCES if missing
+  const campaigns = useMemo(() => {
+    return campaignsFromParent.map(c => ({
+      ...c,
+      sources: (c as any).sources || DEFAULT_SOURCES
+    })).sort((a,b)=> new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [campaignsFromParent]);
+
+  const setCampaigns = (updater: React.SetStateAction<Campaign[]>) => {
+    const newCampaigns = typeof updater === 'function' ? updater(campaigns) : updater;
+    onUpdateCampaigns(newCampaigns);
+  };
+
   const [activeId, setActiveId] = useState(campaigns[0]?.id);
   const current = useMemo(()=> campaigns.find(c=>c.id===activeId) || campaigns[0], [campaigns, activeId]);
 

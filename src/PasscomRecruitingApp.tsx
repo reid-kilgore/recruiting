@@ -12,6 +12,41 @@ interface TimeRange {
   days?: number[]; // Array of day indices (0=Mon, 1=Tue, etc.)
 }
 
+interface Source {
+  key: string;
+  enabled: boolean;
+  dailyCap: number;
+  dailyBudget: number;
+  cpa: number;
+}
+
+interface Campaign {
+  id: string;
+  name: string;
+  createdAt: string;
+  status: 'active' | 'suspended' | 'draft';
+  locations: string[];
+  jobs: string[];
+  startDate: string;
+  endDate?: string;
+  endBudget?: number;
+  endHires?: number;
+  endMode: 'date' | 'budget' | 'hires';
+  timeRanges?: TimeRange[];
+  sources?: Source[];
+}
+
+// Initial campaign data
+const INITIAL_CAMPAIGNS: Campaign[] = [
+  { id:'c7', name:'Summer Hiring Blitz', createdAt:'2025-11-01', status: 'active', locations: ['BOS', 'LGA'], jobs: ['Server', 'Host'], startDate: '2025-11-01', endDate: '2025-12-15', endMode: 'date', timeRanges: [{ start: '11:00', end: '14:00', days: [4, 5, 6] }, { start: '17:00', end: '22:00', days: [4, 5, 6] }] },
+  { id:'c6', name:'Q4 Expansion', createdAt:'2025-10-25', status: 'suspended', locations: ['DCA'], jobs: ['Cook', 'Server'], startDate: '2025-10-25', endBudget: 5000, endMode: 'budget', timeRanges: [{ start: '10:00', end: '16:00', days: [0, 1, 2, 3, 4] }] },
+  { id:'c5', name:'Weekend Warriors', createdAt:'2025-10-18', status: 'active', locations: ['BOS'], jobs: ['Bartender', 'Server'], startDate: '2025-10-18', endHires: 15, endMode: 'hires', timeRanges: [{ start: '18:00', end: '23:00', days: [5, 6] }] },
+  { id:'c4', name:'New Menu Launch', createdAt:'2025-10-15', status: 'active', locations: ['LGA', 'DCA'], jobs: ['Cook'], startDate: '2025-10-15', endDate: '2025-11-30', endMode: 'date', timeRanges: [{ start: '11:00', end: '15:00', days: [0, 1, 2] }] },
+  { id:'c3', name:'New Location Opening', createdAt:'2025-10-14', status: 'active', locations: ['ORD'], jobs: ['Cook', 'Server', 'Host'], startDate: '2025-10-14', endDate: '2025-12-01', endMode: 'date', timeRanges: [{ start: '10:00', end: '15:00', days: [0, 1, 2] }, { start: '17:00', end: '21:00', days: [4, 5, 6] }] },
+  { id:'c2', name:'Weekend Staffing', createdAt:'2025-09-28', status: 'suspended', locations: ['BOS', 'LGA'], jobs: ['Server'], startDate: '2025-09-28', endBudget: 3000, endMode: 'budget', timeRanges: [{ start: '17:00', end: '23:00', days: [5, 6] }] },
+  { id:'c1', name:'Holiday Surge', createdAt:'2025-08-31', status: 'active', locations: ['BOS'], jobs: ['Cook', 'Server', 'Bartender'], startDate: '2025-08-31', endDate: '2025-12-25', endMode: 'date', timeRanges: [{ start: '11:00', end: '21:00', days: [6] }] },
+];
+
 interface JobFormData {
   role: string;
   completed: boolean;
@@ -42,6 +77,56 @@ export default function PasscomRecruitingApp() {
   // Store finalized job postings in memory for later use
   const [finalizedJobs, setFinalizedJobs] = useState<FinalizedJob[]>([]);
   const [openNewCampaignModal, setOpenNewCampaignModal] = useState(false);
+
+  // Campaign state
+  const [campaigns, setCampaigns] = useState<Campaign[]>(INITIAL_CAMPAIGNS);
+
+  // Campaign management functions
+  const updateCampaignStatus = (campaignId: string, newStatus: 'active' | 'suspended' | 'draft') => {
+    setCampaigns(prev => prev.map(c =>
+      c.id === campaignId ? { ...c, status: newStatus } : c
+    ));
+  };
+
+  const addJobToCampaign = (campaignId: string, jobRole: string, timeRanges: TimeRange[]) => {
+    setCampaigns(prev => prev.map(c => {
+      if (c.id === campaignId) {
+        // Add job if not already in campaign
+        const jobs = c.jobs.includes(jobRole) ? c.jobs : [...c.jobs, jobRole];
+        return { ...c, jobs };
+      }
+      return c;
+    }));
+  };
+
+  const createCampaign = (
+    name: string,
+    jobRole: string,
+    locations: string[],
+    timeRanges: TimeRange[],
+    startDate: string,
+    endMode: 'date' | 'budget' | 'hires',
+    endDate?: string,
+    endBudget?: number,
+    endHires?: number
+  ) => {
+    const newCampaign: Campaign = {
+      id: `c${Date.now()}`,
+      name,
+      createdAt: new Date().toISOString().slice(0, 10),
+      status: 'draft',
+      locations,
+      jobs: [jobRole],
+      startDate,
+      endDate,
+      endBudget,
+      endHires,
+      endMode,
+      timeRanges,
+    };
+    setCampaigns(prev => [newCampaign, ...prev]);
+    return newCampaign.id;
+  };
 
   // Log finalized jobs when they change (for debugging)
   useEffect(() => {
@@ -92,10 +177,10 @@ export default function PasscomRecruitingApp() {
     setOpenNewCampaignModal(true);
   };
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: 'demand', label: 'Demand' },
-    { id: 'advertisement', label: 'Advertisement' },
-    { id: 'campaign', label: 'Campaign' },
+  const tabs: { id: Tab; label: string; hidden?: boolean }[] = [
+    { id: 'demand', label: 'Job Posting' },
+    { id: 'advertisement', label: 'Advertisement', hidden: true },
+    { id: 'campaign', label: 'Manage Campaigns' },
     { id: 'review', label: 'Interviewing' },
     { id: 'profile', label: 'Company Profile' }
   ];
@@ -112,47 +197,23 @@ export default function PasscomRecruitingApp() {
       {/* Tabs */}
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="flex gap-2 items-center justify-between">
-            <div className="flex gap-2">
-              {tabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`
-                    px-6 py-3 font-medium text-sm transition-all
-                    ${activeTab === tab.id
-                      ? 'bg-blue-600 text-white rounded-t-lg shadow-md'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 rounded-t-lg'
-                    }
-                  `}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-            
-            {/* Target Tag */}
-            <div className="px-4 py-2 bg-gray-100 border border-gray-300 rounded-lg text-sm">
-              {selectedLocations.length === 0 && selectedJobs.length === 0 ? (
-                <span className="text-gray-500 italic">Choose Locations & Jobs to recruit</span>
-              ) : (
-                <div className="flex items-center gap-2">
-                  {selectedLocations.length > 0 && (
-                    <span className="text-gray-700">
-                      <span className="font-medium">Locations:</span> {selectedLocations.join(', ')}
-                    </span>
-                  )}
-                  {selectedLocations.length > 0 && selectedJobs.length > 0 && (
-                    <span className="text-gray-400">|</span>
-                  )}
-                  {selectedJobs.length > 0 && (
-                    <span className="text-gray-700">
-                      <span className="font-medium">Jobs:</span> {selectedJobs.join(', ')}
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
+          <div className="flex gap-2">
+            {tabs.filter(tab => !tab.hidden).map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`
+                  px-6 py-3 font-medium text-sm transition-all rounded-t-lg
+                  ${activeTab === tab.id
+                    ? 'text-white shadow-md'
+                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }
+                `}
+                style={activeTab === tab.id ? { backgroundColor: '#009cd9' } : {}}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
@@ -168,7 +229,11 @@ export default function PasscomRecruitingApp() {
               setSelectedLocations={setSelectedLocations}
               jobForms={jobForms}
               setJobForms={setJobForms}
-              onStartHiring={() => setActiveTab('advertisement')}
+              onStartHiring={() => setActiveTab('campaign')}
+              campaigns={campaigns}
+              onUpdateCampaignStatus={updateCampaignStatus}
+              onAddJobToCampaign={addJobToCampaign}
+              onCreateCampaign={createCampaign}
             />
           </div>
         )}
@@ -201,6 +266,8 @@ export default function PasscomRecruitingApp() {
               advertisements={finalizedJobs}
               openNewCampaignModal={openNewCampaignModal}
               setOpenNewCampaignModal={setOpenNewCampaignModal}
+              campaigns={campaigns as any}
+              onUpdateCampaigns={setCampaigns}
             />
           </div>
         )}

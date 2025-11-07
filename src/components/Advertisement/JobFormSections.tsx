@@ -54,43 +54,77 @@ interface TimeRange {
   days?: number[]; // Array of day indices (0=Mon, 1=Tue, etc.)
 }
 
+interface Campaign {
+  id: string;
+  name: string;
+  status: 'active' | 'suspended' | 'draft';
+  locations: string[];
+  jobs: string[];
+}
+
 interface JobFormSectionsProps {
   jobRole: string;
   onComplete?: () => void;
   timeRanges?: TimeRange[];
   selectedLocations: string[];
   onFinalize: (jobRole: string) => void;
+  jobFormData?: any;
+  onUpdateJobData?: (data: any) => void;
+  campaigns?: Campaign[];
+  onNavigateToCampaign?: () => void;
+  onAddJobToCampaign?: (campaignId: string) => void;
+  onCreateCampaign?: (
+    name: string,
+    startDate: string,
+    endMode: 'date' | 'budget' | 'hires',
+    endDate?: string,
+    endBudget?: number,
+    endHires?: number
+  ) => string;
 }
 
 type SectionTab = 'details' | 'questions' | 'preview';
 
 const SECTION_ORDER: SectionTab[] = ['details', 'questions', 'preview'];
 
-export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRanges, selectedLocations, onFinalize }: JobFormSectionsProps) {
+export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRanges, selectedLocations, onFinalize, jobFormData = {}, onUpdateJobData, campaigns = [], onNavigateToCampaign, onAddJobToCampaign, onCreateCampaign }: JobFormSectionsProps) {
   // jobRole is used by parent for identification, not displayed since it's shown in the tab
   const [activeSection, setActiveSection] = useState<SectionTab>('details');
+  const [showAddToExistingModal, setShowAddToExistingModal] = useState(false);
+  const [showCreateCampaignModal, setShowCreateCampaignModal] = useState(false);
+
+  const [description, setDescription] = useState(jobFormData.description || "");
+  const [skills, setSkills] = useState(jobFormData.skills || ["Food Handler", "POS (Square)"]);
+  const [newSkill, setNewSkill] = useState("");
+  const [benefits, setBenefits] = useState(jobFormData.benefits || ["Health", "PTO"]);
+  const [newBenefit, setNewBenefit] = useState("");
+  const [payOption, setPayOption] = useState<"exact" | "range" | "omit">(jobFormData.payOption || "exact");
+  const [payExact, setPayExact] = useState(jobFormData.payExact || "18.50");
+  const [tipEligible, setTipEligible] = useState(jobFormData.tipEligible || false);
 
   const goToNextSection = () => {
     const currentIndex = SECTION_ORDER.indexOf(activeSection);
+
+    // When leaving details section, update parent with job data
+    if (activeSection === 'details' && onUpdateJobData) {
+      onUpdateJobData({
+        description,
+        skills,
+        benefits,
+        payOption,
+        pay: payOption === 'exact' ? `$${payExact}/hour` : payOption === 'omit' ? 'Not disclosed' : 'Range',
+        payExact,
+        tipEligible,
+      });
+    }
+
     if (currentIndex < SECTION_ORDER.length - 1) {
       setActiveSection(SECTION_ORDER[currentIndex + 1]);
-    } else {
-      // On last section (preview), finalize
-      onFinalize(_jobRole);
-      if (onComplete) {
-        onComplete();
-      }
     }
   };
 
   const isLastSection = activeSection === SECTION_ORDER[SECTION_ORDER.length - 1];
-  const buttonText = isLastSection ? 'Create Campaign' : 'Next →';
-  const [skills, setSkills] = useState(["Food Handler", "POS (Square)"]);
-  const [newSkill, setNewSkill] = useState("");
-  const [benefits, setBenefits] = useState(["Health", "PTO"]);
-  const [newBenefit, setNewBenefit] = useState("");
-  const [payOption, setPayOption] = useState<"exact" | "range" | "omit">("exact");
-  const [tipEligible, setTipEligible] = useState(false);
+  const buttonText = 'Next →';
   const [questions, setQuestions] = useState<Question[]>([
     { id: 1, type: "Text", text: "", limit: "500", choices: [], newChoice: "" },
     { id: 2, type: "Video", text: "", limit: "60", choices: [], newChoice: "" },
@@ -156,18 +190,35 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
               </button>
             ))}
           </div>
-          <button
-            onClick={goToNextSection}
-            className={`px-6 py-2 rounded-lg font-medium text-sm transition ${
-              isLastSection
-                ? 'bg-green-600 text-white hover:bg-green-700'
-                : 'bg-blue-600 text-white hover:bg-blue-700'
-            }`}
-          >
-            {buttonText}
-          </button>
+          {!isLastSection && (
+            <button
+              onClick={goToNextSection}
+              className="px-6 py-2 rounded-lg font-medium text-sm transition bg-blue-600 text-white hover:bg-blue-700"
+            >
+              {buttonText}
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Action Buttons - Show on preview tab */}
+      {activeSection === 'preview' && (
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowAddToExistingModal(true)}
+            className="flex-1 px-6 py-2 rounded-lg font-medium text-sm transition text-white"
+            style={{ backgroundColor: '#009cd9' }}
+          >
+            Add to Existing Campaign
+          </button>
+          <button
+            onClick={() => setShowCreateCampaignModal(true)}
+            className="flex-1 px-6 py-2 bg-green-600 text-white rounded-lg font-medium text-sm hover:bg-green-700 transition"
+          >
+            Create Campaign
+          </button>
+        </div>
+      )}
 
       {/* Section Content */}
       <div className="space-y-4">
@@ -176,50 +227,63 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
             <div className="grid grid-cols-12 gap-3">
               <Field label="Title"><Input placeholder="Line Cook" defaultValue="Line Cook" /></Field>
 
-            <Field span="col-span-12" label="Job Description">
-              <Textarea placeholder="Describe duties and environment…" rows={4} />
-            </Field>
+            {/* Two column layout for description and other details */}
+            <div className="col-span-12 grid grid-cols-2 gap-4">
+              {/* Left: Job Description */}
+              <Field span="col-span-1" label="Job Description">
+                <Textarea
+                  placeholder="Describe duties and environment…"
+                  rows={8}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                />
+              </Field>
 
-            <Field span="col-span-12 lg:col-span-6" label="Required Skills">
-              <div className="flex flex-wrap gap-2 mb-2">
-                {skills.map((s, i) => <Chip key={i} onRemove={() => setSkills(prev => prev.filter((_, j) => j !== i))}>{s}</Chip>)}
-              </div>
-              <Input placeholder="e.g., ServSafe" value={newSkill}
-                onChange={e => setNewSkill(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && newSkill.trim()) { setSkills(p => [...p, newSkill.trim()]); setNewSkill(""); e.preventDefault(); } }}
-              />
-            </Field>
+              {/* Right: Skills, Schedule, Time Ranges */}
+              <div className="col-span-1 space-y-3">
+                <Field span="col-span-12" label="Required Skills">
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {skills.map((s, i) => <Chip key={i} onRemove={() => setSkills(prev => prev.filter((_, j) => j !== i))}>{s}</Chip>)}
+                  </div>
+                  <Input placeholder="e.g., ServSafe" value={newSkill}
+                    onChange={e => setNewSkill(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && newSkill.trim()) { setSkills(p => [...p, newSkill.trim()]); setNewSkill(""); e.preventDefault(); } }}
+                  />
+                </Field>
 
-            {/* Schedule Information */}
-            <Field label="Schedule Type">
-              <select className="w-full h-9 px-2 rounded border border-gray-300">
-                <option>Full-time</option>
-                <option>Part-time</option>
-                <option>Flexible</option>
-              </select>
-            </Field>
+                {/* Schedule Information */}
+                <Field span="col-span-12" label="Schedule Type">
+                  <select className="w-full h-9 px-2 rounded border border-gray-300">
+                    <option>Full-time</option>
+                    <option>Part-time</option>
+                    <option>Flexible</option>
+                  </select>
+                </Field>
 
-            <Field span="col-span-12" label="Priority Time Ranges">
-              {timeRanges && timeRanges.length > 0 ? (
-                <div className="flex flex-wrap gap-2">
-                  {timeRanges.map((range, idx) => (
-                    <div
-                      key={idx}
-                      className="inline-flex flex-col bg-blue-100 text-blue-800 px-3 py-1 rounded text-sm"
-                    >
-                      <span className="font-medium">{range.start} - {range.end}</span>
-                      {range.days && range.days.length > 0 && (
-                        <span className="text-xs text-blue-600">{formatDays(range.days)}</span>
-                      )}
+                <Field span="col-span-12" label="Priority Time Ranges">
+                  {timeRanges && timeRanges.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {timeRanges.map((range, idx) => (
+                        <div
+                          key={idx}
+                          className="inline-flex flex-col text-blue-800 px-3 py-1 rounded text-sm"
+                          style={{ backgroundColor: '#e0f5fc', color: '#009cd9' }}
+                        >
+                          <span className="font-medium">{range.start} - {range.end}</span>
+                          {range.days && range.days.length > 0 && (
+                            <span className="text-xs">{formatDays(range.days)}</span>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-sm text-gray-500 italic">
-                  No time ranges selected. Go to the Demand tab to select time slots for this role.
-                </div>
-              )}
-            </Field>
+                  ) : (
+                    <div className="text-sm text-gray-500 italic">
+                      No priority time ranges selected.
+                    </div>
+                  )}
+                </Field>
+              </div>
+            </div>
 
             {/* Compensation & Benefits */}
             <Field span="col-span-12 lg:col-span-6">
@@ -233,7 +297,13 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
                 />
                 Exact amount
               </label>
-              <Input placeholder="e.g., $18.50" disabled={payOption !== "exact"} className={payOption !== "exact" ? "opacity-50" : ""} />
+              <Input
+                placeholder="e.g., $18.50"
+                value={payExact}
+                onChange={(e) => setPayExact(e.target.value)}
+                disabled={payOption !== "exact"}
+                className={payOption !== "exact" ? "opacity-50" : ""}
+              />
             </Field>
 
             <Field span="col-span-12 lg:col-span-6">
@@ -400,12 +470,14 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
             </div>
 
             {/* Job Description */}
-            <div className="mb-4">
-              <h3 className="text-sm font-semibold text-gray-700 mb-2">Job Description</h3>
-              <p className="text-sm text-gray-600">
-                Describe duties and environment…
-              </p>
-            </div>
+            {description && (
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Job Description</h3>
+                <p className="text-sm text-gray-600">
+                  {description}
+                </p>
+              </div>
+            )}
 
             {/* Skills */}
             <div className="mb-4">
@@ -420,9 +492,11 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
             {/* Compensation */}
             <div className="mb-4">
               <h3 className="text-sm font-semibold text-gray-700 mb-2">Compensation & Benefits</h3>
-              <div className="text-sm text-gray-600 mb-2">
-                <span className="font-medium">Pay:</span> $18.50/hour
-              </div>
+              {payOption !== 'omit' && (
+                <div className="text-sm text-gray-600 mb-2">
+                  <span className="font-medium">Pay:</span> {payOption === 'exact' ? `$${payExact}/hour` : 'Range to be discussed'}
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 {benefits.map((b, i) => (
                   <span key={i} className="px-2 py-1 bg-green-50 text-green-700 rounded text-xs">{b}</span>
@@ -470,6 +544,267 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
           </div>
         )}
       </div>
+
+      {/* Add to Existing Campaign Modal */}
+      {showAddToExistingModal && (() => {
+        const [selectedCampaignId, setSelectedCampaignId] = React.useState<string>('');
+
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowAddToExistingModal(false)}>
+            <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold">Add to Existing Campaign</h2>
+                  <button
+                    onClick={() => setShowAddToExistingModal(false)}
+                    className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 mb-4">
+                    Select a campaign to add this job posting to:
+                  </p>
+
+                  {/* Campaign list */}
+                  {campaigns.length === 0 ? (
+                    <div className="p-4 border rounded-lg text-center text-gray-500">
+                      No campaigns created yet. Create a campaign first.
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-96 overflow-y-auto border rounded-lg p-2">
+                      {campaigns.map(campaign => (
+                        <button
+                          key={campaign.id}
+                          onClick={() => setSelectedCampaignId(campaign.id)}
+                          className={`w-full text-left p-3 border rounded-lg transition ${
+                            selectedCampaignId === campaign.id
+                              ? 'bg-blue-50'
+                              : 'hover:border-gray-400'
+                          }`}
+                          style={selectedCampaignId === campaign.id ? { borderColor: '#009cd9' } : {}}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="font-semibold">{campaign.name}</div>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              campaign.status === 'active'
+                                ? 'bg-green-100 text-green-700'
+                                : campaign.status === 'suspended'
+                                ? 'bg-gray-100 text-gray-600'
+                                : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {campaign.status.toUpperCase()}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-600 mt-1">
+                            {campaign.locations.join(', ')} • {campaign.jobs.join(', ')}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => setShowAddToExistingModal(false)}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (selectedCampaignId && onAddJobToCampaign) {
+                        onAddJobToCampaign(selectedCampaignId);
+                        setShowAddToExistingModal(false);
+                        if (onNavigateToCampaign) {
+                          onNavigateToCampaign();
+                        }
+                      } else if (!selectedCampaignId) {
+                        alert('Please select a campaign first');
+                      }
+                    }}
+                    className="flex-1 px-4 py-2 text-white rounded-lg font-semibold hover:opacity-90 transition"
+                    style={{ backgroundColor: '#009cd9' }}
+                    disabled={!selectedCampaignId}
+                  >
+                    Add to Campaign
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Create Campaign Modal */}
+      {showCreateCampaignModal && (() => {
+        const [campaignName, setCampaignName] = React.useState(`${_jobRole} Campaign`);
+        const today = new Date();
+        const [startDate, setStartDate] = React.useState(today.toISOString().slice(0, 10));
+        const [endMode, setEndMode] = React.useState<'budget' | 'hires' | 'date'>('date');
+        const [endBudget, setEndBudget] = React.useState(1000);
+        const [endHires, setEndHires] = React.useState(10);
+        const tmpEnd = new Date(); tmpEnd.setDate(tmpEnd.getDate() + 30);
+        const [endDate, setEndDate] = React.useState(tmpEnd.toISOString().slice(0, 10));
+
+        const Field = ({label, children, active = false}: {label: string; children: React.ReactNode; active?: boolean})=> (
+          <div className={`relative border rounded-md px-2 pt-2 pb-1 bg-white min-h-[38px] ${active ? 'border-gray-600' : 'border-gray-400'}`}>
+            <div className="absolute left-2 -top-2 bg-white px-1 text-[11px] text-gray-500">{label}</div>
+            {children}
+          </div>
+        );
+        const inputBase = "w-full bg-transparent outline-none text-sm py-1";
+
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={() => setShowCreateCampaignModal(false)}>
+            <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold">Create New Campaign</h2>
+                  <button
+                    onClick={() => setShowCreateCampaignModal(false)}
+                    className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {/* Campaign Name */}
+                <div className="mb-4">
+                  <Field label="Campaign Name" active={true}>
+                    <input
+                      value={campaignName}
+                      onChange={e => setCampaignName(e.target.value)}
+                      placeholder="Enter campaign name"
+                      className={inputBase}
+                    />
+                  </Field>
+                </div>
+
+                {/* Start Date */}
+                <div className="mb-4">
+                  <Field label="Start Date" active={true}>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={e => setStartDate(e.target.value)}
+                      className={inputBase}
+                    />
+                  </Field>
+                </div>
+
+                {/* End Criteria */}
+                <div className="mb-4">
+                  <div className="text-xs text-gray-600 mb-2">Campaign End Criteria</div>
+                  <div className="flex items-center gap-2">
+                    {/* Budget */}
+                    <input
+                      aria-label="Budget radio"
+                      type="radio"
+                      name="endMode"
+                      checked={endMode === 'budget'}
+                      onChange={() => setEndMode('budget')}
+                      className={endMode === 'budget' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
+                    />
+                    <div className={`flex-1 ${endMode === 'budget' ? '' : 'opacity-60'}`}>
+                      <Field label="Budget" active={endMode === 'budget'}>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={endBudget}
+                          onChange={e => setEndBudget(Math.max(0, Math.floor(Number(e.target.value || 0))))}
+                          disabled={endMode !== 'budget'}
+                          className={inputBase}
+                        />
+                      </Field>
+                    </div>
+
+                    {/* Hires */}
+                    <input
+                      aria-label="Hires radio"
+                      type="radio"
+                      name="endMode"
+                      checked={endMode === 'hires'}
+                      onChange={() => setEndMode('hires')}
+                      className={endMode === 'hires' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
+                    />
+                    <div className={`flex-1 ${endMode === 'hires' ? '' : 'opacity-60'}`}>
+                      <Field label="Hires" active={endMode === 'hires'}>
+                        <input
+                          type="number"
+                          min={0}
+                          step={1}
+                          value={endHires}
+                          onChange={e => setEndHires(Math.max(0, Math.floor(Number(e.target.value || 0))))}
+                          disabled={endMode !== 'hires'}
+                          className={inputBase}
+                        />
+                      </Field>
+                    </div>
+
+                    {/* End Date */}
+                    <input
+                      aria-label="End date radio"
+                      type="radio"
+                      name="endMode"
+                      checked={endMode === 'date'}
+                      onChange={() => setEndMode('date')}
+                      className={endMode === 'date' ? 'accent-black shrink-0' : 'accent-gray-400 shrink-0'}
+                    />
+                    <div className={`flex-1 ${endMode === 'date' ? '' : 'opacity-60'}`}>
+                      <Field label="End Date" active={endMode === 'date'}>
+                        <input
+                          type="date"
+                          value={endDate}
+                          onChange={e => setEndDate(e.target.value)}
+                          disabled={endMode !== 'date'}
+                          className={inputBase}
+                        />
+                      </Field>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => setShowCreateCampaignModal(false)}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg font-medium text-gray-700 hover:bg-gray-50 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (onCreateCampaign && campaignName.trim()) {
+                        const campaignId = onCreateCampaign(
+                          campaignName,
+                          startDate,
+                          endMode,
+                          endMode === 'date' ? endDate : undefined,
+                          endMode === 'budget' ? endBudget : undefined,
+                          endMode === 'hires' ? endHires : undefined
+                        );
+                        setShowCreateCampaignModal(false);
+                        if (onNavigateToCampaign) {
+                          onNavigateToCampaign();
+                        }
+                      } else if (!campaignName.trim()) {
+                        alert('Please enter a campaign name');
+                      }
+                    }}
+                    className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition"
+                  >
+                    Create Campaign
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
