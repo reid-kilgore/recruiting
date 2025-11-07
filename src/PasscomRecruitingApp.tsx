@@ -31,7 +31,8 @@ interface Campaign {
   endDate?: string;
   endBudget?: number;
   endHires?: number;
-  endMode: 'date' | 'budget' | 'hires';
+  endMode: 'date' | 'budget' | 'hires' | 'staffing';
+  targetStaffing?: { good: number; ok: number; bad: number };
   timeRanges?: TimeRange[];
   sources?: Source[];
 }
