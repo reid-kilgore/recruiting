@@ -750,14 +750,12 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                                       // Toggle all locations in region at once
                                       if (allRegionLocationsChecked) {
                                         // Uncheck all locations in this region
-                                        setSelectedLocations(prev => prev.filter(loc => !region.locations.includes(loc)))
+                                        setSelectedLocations(selectedLocations.filter(loc => !region.locations.includes(loc)))
                                       } else {
                                         // Check all locations in this region
-                                        setSelectedLocations(prev => {
-                                          const newSet = new Set(prev)
-                                          region.locations.forEach(loc => newSet.add(loc))
-                                          return Array.from(newSet)
-                                        })
+                                        const newSet = new Set(selectedLocations)
+                                        region.locations.forEach(loc => newSet.add(loc))
+                                        setSelectedLocations(Array.from(newSet))
                                       }
                                     }}
                                     onClick={(e) => e.stopPropagation()}
