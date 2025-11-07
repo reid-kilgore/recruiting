@@ -437,7 +437,7 @@ export default function CampaignManager({ selectedLocations: _selectedLocations,
 
               {/* Row 3: Status Control Buttons */}
               <div className="flex gap-2">
-                {current.status !== 'active' && (
+                {current.status !== 'active' && current.status !== 'archived' && (
                   <button
                     onClick={() => setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, status: 'active' } : c))}
                     className="px-4 py-2 rounded-lg font-medium text-sm transition bg-green-600 hover:bg-green-700 text-white"
@@ -453,10 +453,43 @@ export default function CampaignManager({ selectedLocations: _selectedLocations,
                     Suspend Campaign
                   </button>
                 )}
+                {current.status !== 'archived' && (
+                  <button
+                    onClick={() => {
+                      if (confirm(`Are you sure you want to archive "${current.name}"? This cannot be undone.`)) {
+                        setCampaigns(prev => prev.map(c => c.id === current.id ? { ...c, status: 'archived' } : c));
+                      }
+                    }}
+                    className="px-4 py-2 rounded-lg font-medium text-sm transition bg-gray-600 hover:bg-gray-700 text-white"
+                  >
+                    Archive
+                  </button>
+                )}
+                {current.status === 'archived' && (
+                  <button
+                    onClick={() => {
+                      // Create a copy of the archived campaign
+                      const newCampaign: Campaign = {
+                        ...current,
+                        id: `c${Date.now()}`,
+                        name: `${current.name} (Copy)`,
+                        createdAt: new Date().toISOString().slice(0, 10),
+                        status: 'draft',
+                        startDate: new Date().toISOString().slice(0, 10),
+                      };
+                      setCampaigns(prev => [newCampaign, ...prev]);
+                      setActiveId(newCampaign.id);
+                    }}
+                    className="px-4 py-2 rounded-lg font-medium text-sm transition bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    Copy as New Campaign
+                  </button>
+                )}
                 <div className="flex-1"></div>
                 <span className={`px-3 py-2 rounded-lg text-sm font-medium ${
                   current.status === 'active' ? 'bg-green-100 text-green-700' :
                   current.status === 'suspended' ? 'bg-gray-100 text-gray-600' :
+                  current.status === 'archived' ? 'bg-gray-200 text-gray-700' :
                   'bg-blue-100 text-blue-700'
                 }`}>
                   {current.status.toUpperCase()}
@@ -595,17 +628,21 @@ function CampaignsWindow(props: CampaignsWindowProps){
                       ? 'bg-green-50 border-l-4 border-green-600'
                       : row.status === 'suspended'
                         ? 'bg-gray-50 border-l-4 border-gray-400'
-                        : 'bg-blue-50 border-l-4 border-blue-600'
+                        : row.status === 'archived'
+                          ? 'bg-gray-100 border-l-4 border-gray-500'
+                          : 'bg-blue-50 border-l-4 border-blue-600'
                     : row.status === 'active'
                       ? 'hover:bg-green-50'
                       : row.status === 'suspended'
                         ? 'hover:bg-gray-50 opacity-60'
-                        : 'hover:bg-blue-50'
+                        : row.status === 'archived'
+                          ? 'hover:bg-gray-100 opacity-50'
+                          : 'hover:bg-blue-50'
                 }`}
               >
                 <div className="flex-1 truncate">
                   <div className="flex items-center gap-2">
-                    <span className="truncate">{row.name}</span>
+                    <span className={`truncate ${row.status === 'archived' ? 'line-through text-gray-500' : ''}`}>{row.name}</span>
                     {row.status === 'active' && (
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-600 text-white">
                         ACTIVE
@@ -614,6 +651,11 @@ function CampaignsWindow(props: CampaignsWindowProps){
                     {row.status === 'suspended' && (
                       <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-400 text-white">
                         SUSPENDED
+                      </span>
+                    )}
+                    {row.status === 'archived' && (
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-500 text-white">
+                        ARCHIVED
                       </span>
                     )}
                   </div>

@@ -874,19 +874,110 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
 
               {/* Suggested Priority Time Ranges */}
               {!heatmapCollapsed && selectedRole && (() => {
-                // Find the worst time slots based on heatmap data
-                const suggestions = [
-                  { start: '11:00', end: '14:00', days: [0,1,2,3,4], label: 'Lunch (Mon-Fri)', slots: [[0,22,28],[1,22,28],[2,22,28],[3,22,28],[4,22,28]] },
-                  { start: '17:00', end: '22:00', days: [0,1,2,3,4], label: 'Dinner (Mon-Fri)', slots: [[0,34,44],[1,34,44],[2,34,44],[3,34,44],[4,34,44]] },
-                  { start: '18:00', end: '23:00', days: [5,6], label: 'Weekend Evenings', slots: [[5,36,46],[6,36,46]] },
-                  { start: '08:00', end: '23:30', days: [0,1,2,3,4,5,6], label: 'All Hours', slots: [[0,16,47],[1,16,47],[2,16,47],[3,16,47],[4,16,47],[5,16,47],[6,16,47]] },
-                ];
+                // Find the worst time slots based on heatmap data (RED cells)
+                // Analyze weekMatrix to find cells where supply is significantly below demand
+                const redCells: { day: number; slot: number; severity: number }[] = [];
+                weekMatrix.forEach((dayData, dayIdx) => {
+                  dayData.forEach((cell, slotIdx) => {
+                    if (!cell.closed && cell.demand > 0) {
+                      const delta = (cell.supply - cell.demand) / cell.demand;
+                      if (delta <= -0.05) { // Red threshold
+                        redCells.push({ day: dayIdx, slot: slotIdx, severity: -delta });
+                      }
+                    }
+                  });
+                });
 
-                return (
-                  <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="text-xs font-semibold text-gray-700 mb-2">Suggested Priority Time Ranges:</div>
+                // Sort by severity (worst first)
+                redCells.sort((a, b) => b.severity - a.severity);
+
+                // Group into time ranges by finding contiguous blocks per day
+                const suggestions: { start: string; end: string; days: number[]; label: string; slots: number[][]; severity: number }[] = [];
+
+                // Group red cells by day
+                const cellsByDay: Record<number, number[]> = {};
+                redCells.forEach(({ day, slot }) => {
+                  if (!cellsByDay[day]) cellsByDay[day] = [];
+                  if (!cellsByDay[day].includes(slot)) cellsByDay[day].push(slot);
+                });
+
+                // Find contiguous ranges within each day
+                Object.entries(cellsByDay).forEach(([dayStr, slots]) => {
+                  const day = Number(dayStr);
+                  slots.sort((a, b) => a - b);
+
+                  let rangeStart = slots[0];
+                  let rangeEnd = slots[0];
+
+                  for (let i = 1; i <= slots.length; i++) {
+                    const slot = slots[i];
+                    if (slot === rangeEnd + 1) {
+                      rangeEnd = slot;
+                    } else {
+                      // End of contiguous range, create suggestion
+                      if (rangeEnd - rangeStart >= 3) { // At least 2 hours (4 slots)
+                        const startTime = `${String(Math.floor(rangeStart / 2)).padStart(2, '0')}:${rangeStart % 2 === 0 ? '00' : '30'}`;
+                        const endTime = `${String(Math.floor((rangeEnd + 1) / 2)).padStart(2, '0')}:${(rangeEnd + 1) % 2 === 0 ? '00' : '30'}`;
+                        const avgSeverity = slots.slice(slots.indexOf(rangeStart), slots.indexOf(rangeEnd) + 1).reduce((sum, s) => {
+                          const cell = redCells.find(rc => rc.day === day && rc.slot === s);
+                          return sum + (cell?.severity || 0);
+                        }, 0) / (rangeEnd - rangeStart + 1);
+
+                        suggestions.push({
+                          start: startTime,
+                          end: endTime,
+                          days: [day],
+                          label: `${DAYS[day]} ${startTime}-${endTime}`,
+                          slots: [[day, rangeStart, rangeEnd]],
+                          severity: avgSeverity
+                        });
+                      }
+                      rangeStart = slot;
+                      rangeEnd = slot;
+                    }
+                  }
+                });
+
+                // Try to merge similar time ranges across days
+                const mergedSuggestions: typeof suggestions = [];
+                suggestions.forEach(sug => {
+                  const existing = mergedSuggestions.find(m =>
+                    m.start === sug.start && m.end === sug.end
+                  );
+                  if (existing) {
+                    existing.days.push(sug.days[0]);
+                    existing.slots.push(sug.slots[0]);
+                    existing.severity = (existing.severity + sug.severity) / 2;
+                  } else {
+                    mergedSuggestions.push({ ...sug });
+                  }
+                });
+
+                // Sort by severity and take top 4
+                mergedSuggestions.sort((a, b) => b.severity - a.severity);
+                const topSuggestions = mergedSuggestions.slice(0, 4);
+
+                // Update labels for merged ranges
+                topSuggestions.forEach(sug => {
+                  sug.days.sort((a, b) => a - b);
+                  if (sug.days.length === 7) {
+                    sug.label = `All Week ${sug.start}-${sug.end}`;
+                  } else if (sug.days.length === 5 && sug.days[0] === 0 && sug.days[4] === 4) {
+                    sug.label = `Mon-Fri ${sug.start}-${sug.end}`;
+                  } else if (sug.days.length === 2 && sug.days[0] === 5 && sug.days[1] === 6) {
+                    sug.label = `Weekend ${sug.start}-${sug.end}`;
+                  } else if (sug.days.length > 1) {
+                    sug.label = `${DAYS[sug.days[0]]}-${DAYS[sug.days[sug.days.length - 1]]} ${sug.start}-${sug.end}`;
+                  }
+                });
+
+                return topSuggestions.length > 0 ? (
+                  <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <div className="text-xs font-semibold text-gray-700 mb-2">
+                      Suggested Priority Time Ranges (Based on High Demand):
+                    </div>
                     <div className="flex flex-wrap gap-2">
-                      {suggestions.map((suggestion, idx) => (
+                      {topSuggestions.map((suggestion, idx) => (
                         <button
                           key={idx}
                           onClick={() => {
@@ -909,15 +1000,15 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                                 : f
                             ));
                           }}
-                          className="px-3 py-1 bg-white border border-blue-300 rounded text-xs font-medium hover:bg-blue-100 transition"
+                          className="px-3 py-1 bg-white border border-red-300 rounded text-xs font-medium hover:bg-red-100 transition"
                         >
-                          <div className="font-semibold text-blue-700">{suggestion.start} - {suggestion.end}</div>
-                          <div className="text-[10px] text-blue-600">{suggestion.label}</div>
+                          <div className="font-semibold text-red-700">{suggestion.start} - {suggestion.end}</div>
+                          <div className="text-[10px] text-red-600">{suggestion.label}</div>
                         </button>
                       ))}
                     </div>
                   </div>
-                );
+                ) : null;
               })()}
 
               {/* Views */}
