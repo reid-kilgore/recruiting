@@ -224,6 +224,26 @@ export default function JobFormSections({ jobRole: _jobRole, onComplete, timeRan
       <div className="space-y-4">
         {activeSection === 'details' && (
           <div className="bg-white border rounded-xl p-5 shadow-sm">
+            {/* Copy from Previous Posting */}
+            <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+              <label className="block text-xs font-semibold text-gray-700 mb-2">Copy from Previous Posting</label>
+              <select
+                className="w-full h-9 px-2 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                onChange={(e) => {
+                  if (e.target.value) {
+                    // In a real app, this would load data from the selected posting
+                    alert('Copy from previous posting: ' + e.target.value);
+                  }
+                }}
+                defaultValue=""
+              >
+                <option value="">-- Select a previous posting --</option>
+                <option value="cook-boston-2025">Cook - Boston (2025-10-15)</option>
+                <option value="server-lga-2025">Server - LGA (2025-10-01)</option>
+                <option value="bartender-dca-2025">Bartender - DCA (2025-09-20)</option>
+              </select>
+            </div>
+
             <div className="grid grid-cols-12 gap-3">
               <Field label="Title"><Input placeholder="Line Cook" defaultValue="Line Cook" /></Field>
 

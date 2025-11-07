@@ -253,6 +253,7 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
   const [route, setRoute] = useState<Route>('plan')
   const [showCampaignOverlay, setShowCampaignOverlay] = useState(true)
   const [isBuildingCampaign, setIsBuildingCampaign] = useState(false)
+  const [heatmapCollapsed, setHeatmapCollapsed] = useState(false)
 
   // Location breakdown data for each role (mock data with variation)
   const locationBreakdown: Record<string, Record<string, { good: number; ok: number; bad: number }>> = {
@@ -748,38 +749,6 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                           )}
                         </div>
                         <div className="text-gray-600 text-[11px] mb-2">{rightText}</div>
-
-                        {/* Action Buttons */}
-                        <div className="flex gap-2 mt-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Navigate to Campaign tab
-                              if (onStartHiring) {
-                                onStartHiring();
-                              }
-                            }}
-                            className="flex-1 px-2 py-1 text-xs rounded font-medium transition text-white"
-                            style={{ backgroundColor: '#009cd9' }}
-                          >
-                            View
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              // Toggle campaign status
-                              const newStatus = campaign.status === 'active' ? 'suspended' : 'active';
-                              onUpdateCampaignStatus(campaign.id, newStatus);
-                            }}
-                            className={`flex-1 px-2 py-1 text-xs rounded font-medium transition ${
-                              campaign.status === 'active'
-                                ? 'bg-orange-600 text-white hover:bg-orange-700'
-                                : 'bg-green-600 text-white hover:bg-green-700'
-                            }`}
-                          >
-                            {campaign.status === 'active' ? 'Suspend' : 'Launch'}
-                          </button>
-                        </div>
                       </div>
                     );
                   })}
@@ -894,11 +863,49 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                     className={`ml-2 px-2 py-1 border rounded text-xs ${showCampaignOverlay ? 'bg-purple-600 text-white' : 'bg-white'}`}
                   >
                     {showCampaignOverlay ? 'Hide' : 'Show'} Campaign Targets </button>
+                  <button
+                    onClick={()=>setHeatmapCollapsed(!heatmapCollapsed)}
+                    className="px-2 py-1 border rounded text-xs bg-white hover:bg-gray-100"
+                  >
+                    {heatmapCollapsed ? 'Expand' : 'Collapse'}
+                  </button>
                 </div>
               </div>
 
+              {/* Suggested Priority Time Ranges */}
+              {!heatmapCollapsed && selectedRole && (
+                <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="text-xs font-semibold text-gray-700 mb-2">Suggested Priority Time Ranges:</div>
+                  <div className="flex flex-wrap gap-2">
+                    {[
+                      { label: 'All', start: '00:00', end: '23:30', days: [0,1,2,3,4,5,6] },
+                      { label: 'Lunch Rush', start: '11:00', end: '14:00', days: [0,1,2,3,4] },
+                      { label: 'Dinner Rush', start: '17:00', end: '22:00', days: [0,1,2,3,4] },
+                      { label: 'Weekend Nights', start: '18:00', end: '23:00', days: [5,6] },
+                    ].map((suggestion, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => {
+                          const currentJobForm = jobForms.find(f => f.role === selectedRole);
+                          const existingRanges = currentJobForm?.timeRanges || [];
+                          const newRange = { start: suggestion.start, end: suggestion.end, days: suggestion.days };
+                          setJobForms(prev => prev.map(f =>
+                            f.role === selectedRole
+                              ? { ...f, timeRanges: [...existingRanges, newRange] }
+                              : f
+                          ));
+                        }}
+                        className="px-3 py-1 bg-white border border-blue-300 rounded text-xs font-medium text-blue-700 hover:bg-blue-100 transition"
+                      >
+                        {suggestion.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Views */}
-              <div className="flex-1 overflow-auto">
+              <div className={`flex-1 overflow-auto ${heatmapCollapsed ? 'hidden' : ''}`}>
                 {viewMode === 'week' && (
                   <WeekGrid
                     weekMatrix={weekMatrix}
@@ -1016,6 +1023,57 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                         </div>
                       )}
                     </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2 mt-3">
+                    <button
+                      onClick={() => {
+                        if (onStartHiring) {
+                          onStartHiring();
+                        }
+                      }}
+                      className="flex-1 px-3 py-2 text-sm rounded font-medium transition text-white"
+                      style={{ backgroundColor: '#009cd9' }}
+                    >
+                      View
+                    </button>
+                    {selectedCampaign.status !== 'archived' && (
+                      <>
+                        <button
+                          onClick={() => {
+                            const newStatus = selectedCampaign.status === 'active' ? 'suspended' : 'active';
+                            onUpdateCampaignStatus(selectedCampaign.id, newStatus);
+                          }}
+                          className={`flex-1 px-3 py-2 text-sm rounded font-medium transition ${
+                            selectedCampaign.status === 'active'
+                              ? 'bg-orange-600 text-white hover:bg-orange-700'
+                              : 'bg-green-600 text-white hover:bg-green-700'
+                          }`}
+                        >
+                          {selectedCampaign.status === 'active' ? 'Suspend' : 'Launch'}
+                        </button>
+                        <button
+                          onClick={() => {
+                            onUpdateCampaignStatus(selectedCampaign.id, 'archived');
+                          }}
+                          className="flex-1 px-3 py-2 text-sm rounded font-medium transition bg-gray-600 text-white hover:bg-gray-700"
+                        >
+                          Archive
+                        </button>
+                      </>
+                    )}
+                    {selectedCampaign.status === 'archived' && (
+                      <button
+                        onClick={() => {
+                          // Copy campaign logic would go here
+                          alert('Copy as New Campaign - to be implemented');
+                        }}
+                        className="flex-1 px-3 py-2 text-sm rounded font-medium transition bg-purple-600 text-white hover:bg-purple-700"
+                      >
+                        Copy as New Campaign
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
