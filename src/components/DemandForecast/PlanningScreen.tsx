@@ -175,6 +175,7 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth()) // 0..11
   const [route, setRoute] = useState<Route>('plan')
   const [showLocationDropdown, setShowLocationDropdown] = useState(false)
+  const [showCampaignOverlay, setShowCampaignOverlay] = useState(true)
   const locationDropdownRef = useRef<HTMLDivElement>(null)
 
   // Close location dropdown when clicking outside
@@ -442,9 +443,11 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
 
               {/* Roles Section */}
               {roles.map((r) => {
-                const gap = r.demand - r.supply
-                const pct = Math.max(0, Math.min(100, (r.supply / Math.max(1, r.demand)) * 100))
                 const isSelected = selectedRole === r.role
+                // Calculate good/ok/bad percentages (mock values for now)
+                const goodPct = 45
+                const okPct = 35
+                const badPct = 20
                 return (
                   <div
                     key={r.role}
@@ -460,18 +463,13 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium">{r.role}</div>
-                        <div className="text-xs text-gray-500">Demand {r.demand} | Supply {r.supply}</div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="text-sm font-semibold text-gray-700 min-w-[52px] text-right">
-                          {gap > 0 ? `+${gap}` : 'OK'}
-                        </div>
-                      </div>
+                      <div className="font-medium">{r.role}</div>
                     </div>
-                    <div className="mt-2 h-2 w-full bg-gray-200 rounded">
-                      <div className="h-2 rounded bg-blue-500" style={{ width: pct + '%' }} />
+                    {/* Three-color progress bar */}
+                    <div className="mt-2 h-2 w-full bg-gray-200 rounded flex overflow-hidden">
+                      <div className="h-2" style={{ width: `${goodPct}%`, background: '#8ace00' }} />
+                      <div className="h-2" style={{ width: `${okPct}%`, background: '#6c6c6c' }} />
+                      <div className="h-2" style={{ width: `${badPct}%`, background: '#6f004f' }} />
                     </div>
                   </div>
                 )
@@ -563,6 +561,12 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                   <button onClick={()=>setViewMode('month')} className={`px-2 py-1 border rounded ${viewMode==='month'?'bg-gray-900 text-white':''}`}>Month</button>
                   <button onClick={()=>setViewMode('year')} className={`px-2 py-1 border rounded ${viewMode==='year'?'bg-gray-900 text-white':''}`}>Year</button>
                   <button onClick={()=>setShowLegend(!showLegend)} className="ml-2 underline">Legend</button>
+                  <button
+                    onClick={()=>setShowCampaignOverlay(!showCampaignOverlay)}
+                    className={`ml-2 px-2 py-1 border rounded text-xs ${showCampaignOverlay ? 'bg-purple-600 text-white' : 'bg-white'}`}
+                  >
+                    {showCampaignOverlay ? 'Hide' : 'Show'} Campaign Times
+                  </button>
                 </div>
               </div>
 
@@ -589,6 +593,7 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                     filteredCampaigns={campaigns.filter(campaign => campaign.status === 'active' && (!selectedRole || campaign.jobs.includes(selectedRole)))}
                     onCellMouseDown={handleCellMouseDown}
                     onCellMouseEnter={handleCellMouseEnter}
+                    showCampaignOverlay={showCampaignOverlay}
                   />
                 )}
                 {viewMode === 'month' && (
@@ -607,6 +612,65 @@ export default function PlanningScreen({ selectedJobs: _selectedJobs, setSelecte
                   />
                 )}
               </div>
+
+              {/* Campaign Target Section - shown when a campaign is selected */}
+              {selectedCampaign && (
+                <div className="mt-4 bg-white border rounded-xl p-4">
+                  <div className="text-sm font-semibold mb-3">Campaign Target: {selectedCampaign.name}</div>
+
+                  {/* Before/Target Visualization */}
+                  <div className="flex items-center gap-4 justify-center mb-4">
+                    {/* Before Bar */}
+                    <div className="text-center">
+                      <div className="text-xs text-gray-600 mb-1">Before</div>
+                      <div className="h-8 w-32 rounded flex overflow-hidden shadow">
+                        <div className="h-full" style={{ width: '40%', background: '#8ace00' }} />
+                        <div className="h-full" style={{ width: '35%', background: '#6c6c6c' }} />
+                        <div className="h-full" style={{ width: '25%', background: '#6f004f' }} />
+                      </div>
+                    </div>
+
+                    {/* Arrow */}
+                    <div className="text-2xl text-gray-400">→</div>
+
+                    {/* Target Bar */}
+                    <div className="text-center">
+                      <div className="text-xs text-gray-600 mb-1">Target</div>
+                      <div className="h-8 w-32 rounded flex overflow-hidden shadow">
+                        <div className="h-full" style={{ width: '70%', background: '#8ace00' }} />
+                        <div className="h-full" style={{ width: '25%', background: '#6c6c6c' }} />
+                        <div className="h-full" style={{ width: '5%', background: '#6f004f' }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Campaign Details */}
+                  <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <span className="text-gray-500">Locations:</span>
+                        <span className="ml-1 font-medium">{selectedCampaign.locations.join(', ')}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Jobs:</span>
+                        <span className="ml-1 font-medium">{selectedCampaign.jobs.join(', ')}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">Start:</span>
+                        <span className="ml-1 font-medium">{formatDate(selectedCampaign.startDate)}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-500">End Goal:</span>
+                        <span className="ml-1 font-medium">
+                          {selectedCampaign.endMode === 'date' && selectedCampaign.endDate && formatDate(selectedCampaign.endDate)}
+                          {selectedCampaign.endMode === 'budget' && `$${selectedCampaign.endBudget?.toLocaleString()}`}
+                          {selectedCampaign.endMode === 'hires' && `${selectedCampaign.endHires} hires`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <TestPanel />
             </div>
@@ -634,7 +698,8 @@ function WeekGrid({
   selectedCampaign,
   filteredCampaigns,
   onCellMouseDown,
-  onCellMouseEnter
+  onCellMouseEnter,
+  showCampaignOverlay
 }: {
   weekMatrix: { demand: number; supply: number; closed: boolean }[][]
   selectedSlots: Set<string>
@@ -642,6 +707,7 @@ function WeekGrid({
   filteredCampaigns: Campaign[]
   onCellMouseDown: (day: number, slotIndex: number) => void
   onCellMouseEnter: (day: number, slotIndex: number) => void
+  showCampaignOverlay: boolean
 }) {
   // Convert campaign time ranges to slot set (with day information)
   const campaignSlots = new Set<string>()
@@ -717,16 +783,20 @@ function WeekGrid({
                   const isCampaignSlot = campaignSlots.has(cellKey)
                   const isFilteredCampaignSlot = filteredCampaignSlots.has(cellKey)
 
+                  // Use diagonal split if showCampaignOverlay is true and this is a campaign slot
+                  const showDiagonalSplit = showCampaignOverlay && isFilteredCampaignSlot
+
                   return (
                     <div
                       key={cellKey}
                       title={`${slot.time} - D:${demand} S:${supply}${closed?' (closed)':''}`}
-                      className="cursor-pointer hover:opacity-80"
+                      className="cursor-pointer hover:opacity-80 relative"
                       onMouseDown={() => onCellMouseDown(dayIdx, slotIndex)}
                       onMouseEnter={() => onCellMouseEnter(dayIdx, slotIndex)}
                       style={{
                         height: '10px',
-                        background: isCampaignSlot ? '#a78bfa' : isFilteredCampaignSlot ? '#86efac' : bg,
+                        background: isCampaignSlot ? '#a78bfa' : showDiagonalSplit ?
+                          `linear-gradient(135deg, ${bg} 0%, ${bg} 50%, #86efac 50%, #86efac 100%)` : bg,
                         outline: isSelected ? '2px solid #3b82f6' : 'none',
                         outlineOffset: '-2px'
                       }}
