@@ -19,9 +19,9 @@ const ALL_HALF_HOUR_SLOTS = Array.from({ length: 48 }, (_, i) => {
 const HALF_HOUR_SLOTS = ALL_HALF_HOUR_SLOTS.filter(slot => slot.index >= 16) // 8am onwards
 
 const COLORS = {
-  green: "#10b981",
+  green: "#8ace00",
   yellow: "#9ca3af", // Changed to grey for "ok"
-  red: "#ef4444",
+  red: "#d20011",
   closed: "#e5e7eb",
   g20: "#047857",
   g30: "#065f46",
