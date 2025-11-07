@@ -120,7 +120,7 @@ export default function CampaignManager({ selectedLocations: _selectedLocations,
   };
 
   const [activeId, setActiveId] = useState(campaigns[0]?.id);
-  const current = useMemo(()=> campaigns.find(c=>c.id===activeId) || campaigns[0], [campaigns, activeId]);
+  const current = campaigns.find(c=>c.id===activeId) || campaigns[0];
 
   const handleSelectCampaign = (campaign: Campaign) => {
     setActiveId(campaign.id);
